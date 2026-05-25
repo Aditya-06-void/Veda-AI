@@ -2,16 +2,9 @@
 
 import { Download, RefreshCcw } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Assignment } from "@/lib/types";
-
-const difficultyVariant = {
-  Easy: "success",
-  Moderate: "warning",
-  Challenging: "danger",
-} as const;
 
 export function AssignmentOutput({
   assignment,
@@ -23,15 +16,18 @@ export function AssignmentOutput({
   busy: boolean;
 }) {
   const paper = assignment.generatedPaper;
-  const generating =
-    assignment.status === "queued" || assignment.status === "generating";
+  const generating = assignment.status === "queued" || assignment.status === "generating";
+
+  // Running question number across all sections
+  let globalQ = 0;
 
   return (
     <div className="space-y-4">
-      <Card className="rounded-[28px] bg-[#2a2a2a] px-4 py-5 text-white md:rounded-[32px] md:px-6 md:py-6">
+      {/* ── Greeting card ── */}
+      <Card className="rounded-[28px] bg-[#2a2a2a] px-4 py-5 text-white md:rounded-[32px] md:px-6 md:py-6 print:hidden">
         <p className="max-w-4xl text-[14px] font-bold leading-6 md:text-[18px] md:leading-8">
           {paper?.greeting ??
-            `Certainly, Lakshya! Here are customized Question Paper for your ${assignment.board} ${assignment.className} ${assignment.subject} classes on the requested syllabus.`}
+            `Generating your ${assignment.board} ${assignment.className} ${assignment.subject} question paper…`}
         </p>
         <div className="mt-5 flex flex-wrap gap-3">
           <Button
@@ -43,89 +39,117 @@ export function AssignmentOutput({
             <Download className="size-4" />
             Download as PDF
           </Button>
-          <Button variant="outline" onClick={() => onRegenerate(assignment.id)} disabled={busy}>
+          <Button
+            variant="outline"
+            onClick={() => onRegenerate(assignment.id)}
+            disabled={busy || generating}
+          >
             <RefreshCcw className="size-4" />
             Regenerate
           </Button>
         </div>
       </Card>
 
+      {/* ── Paper card ── */}
       <Card className="overflow-hidden rounded-[32px] bg-white">
-        <div className="px-4 py-6 md:px-6 md:py-8">
+        <div className="px-4 py-6 md:px-10 md:py-10">
           {!paper ? (
             <div className="flex min-h-[680px] flex-col items-center justify-center text-center md:min-h-[800px]">
               <div className="mb-4 size-12 animate-spin rounded-full border-4 border-black/10 border-t-black" />
               <h2 className="text-[24px] font-extrabold tracking-[-0.04em] text-[#2d2d2d] md:text-[28px]">
-                {generating ? "Generating question paper..." : "Preparing output"}
+                {generating ? "Generating question paper…" : "Preparing output"}
               </h2>
               <p className="mt-2 max-w-xl text-[#7b7b7b]">
-                We are structuring sections, balancing difficulties, assigning
-                marks, and formatting the paper to match the assignment brief.
+                Structuring sections, balancing difficulty, assigning marks, and formatting your paper.
               </p>
             </div>
           ) : (
-            <article id="print-paper" className="text-[#2d2d2d]">
-              <header className="space-y-2 text-center md:space-y-3">
-                <h1 className="text-[16px] font-extrabold leading-6 md:text-[28px]">
+            <article
+              id="print-paper"
+              className="mx-auto max-w-3xl font-serif text-[#111]"
+            >
+              {/* ── Paper header ── */}
+              <header className="border-b-2 border-[#111] pb-5 text-center">
+                <h1 className="text-[20px] font-black uppercase tracking-wider md:text-[26px]">
                   {paper.schoolName}
                 </h1>
-                <p className="text-[14px] font-bold md:text-[18px]">Subject: {paper.subject}</p>
-                <p className="text-[14px] font-bold md:text-[18px]">Class: {paper.className}</p>
+                <div className="mt-2 flex flex-wrap items-center justify-center gap-x-5 gap-y-1 text-[13px] md:text-[15px]">
+                  <span><strong>Subject:</strong> {paper.subject}</span>
+                  <span className="text-[#aaa]">|</span>
+                  <span><strong>Class:</strong> {paper.className}</span>
+                </div>
+                <div className="mt-3 flex items-center justify-between text-[12px] font-semibold md:text-[14px]">
+                  <span>Time Allowed: {paper.timeAllowed}</span>
+                  <span>Maximum Marks: {paper.maximumMarks}</span>
+                </div>
               </header>
 
-              <div className="mt-8 flex flex-col gap-4 text-[14px] md:mt-10 md:flex-row md:justify-between md:text-[18px]">
-                <p className="font-bold">Time Allowed: {paper.timeAllowed}</p>
-                <p className="font-bold">Maximum Marks: {paper.maximumMarks}</p>
+              {/* ── Instructions + student fields ── */}
+              <div className="mt-4 space-y-3 border-b border-[#ddd] pb-4 text-[12px] md:text-[13px]">
+                <p className="italic text-[#444]">All questions are compulsory unless stated otherwise.</p>
+                <div className="flex flex-wrap gap-x-8 gap-y-2">
+                  {paper.studentFields.map((field) => (
+                    <p key={field}>
+                      <span className="font-semibold">{field}:</span>{" "}
+                      <span className="inline-block w-32 border-b border-[#111] align-bottom md:w-44" />
+                    </p>
+                  ))}
+                </div>
               </div>
 
-              <p className="mt-6 text-[14px] font-semibold md:mt-8 md:text-[18px]">
-                All questions are compulsory unless stated otherwise.
-              </p>
-
-              <div className="mt-6 space-y-1 text-[14px] md:mt-8 md:space-y-2 md:text-[18px]">
-                {paper.studentFields.map((field) => (
-                  <p key={field}>
-                    <span className="font-bold">{field}:</span>{" "}
-                    <span className="inline-block w-28 border-b border-[#3b3b3b] md:w-40" />
-                  </p>
-                ))}
-              </div>
-
-              {paper.sections.map((section, sectionIndex) => (
-                <section key={section.id} className="mt-10 md:mt-14">
-                  <h2 className="text-center text-[24px] font-extrabold tracking-[-0.04em] md:text-[34px]">
-                    Section {String.fromCharCode(65 + sectionIndex)}
-                  </h2>
-                  <div className="mt-6 md:mt-8">
-                    <h3 className="text-[18px] font-bold md:text-[26px]">{section.title}</h3>
-                    <p className="text-sm italic text-[#555] md:text-lg">{section.instruction}</p>
+              {/* ── Sections ── */}
+              {paper.sections.map((section, sIdx) => (
+                <section key={section.id} className="mt-8 md:mt-10">
+                  {/* Section heading */}
+                  <div className="border-y border-[#ccc] py-2 text-center">
+                    <h2 className="text-[13px] font-extrabold uppercase tracking-widest md:text-[15px]">
+                      Section {String.fromCharCode(65 + sIdx)}: {section.title}
+                    </h2>
+                    <p className="mt-0.5 text-[11px] italic text-[#666] md:text-[12px]">
+                      {section.instruction}
+                    </p>
                   </div>
-                  <ol className="mt-6 space-y-4 md:mt-8 md:space-y-5">
-                    {section.questions.map((question) => (
-                      <li key={question.id} className="list-decimal text-[14px] leading-7 md:text-[18px] md:leading-8">
-                        <div className="ml-2 inline-flex flex-wrap items-center gap-2 md:gap-3">
-                          <span>{question.text}</span>
-                          <Badge variant={difficultyVariant[question.difficulty]}>
-                            {question.difficulty}
-                          </Badge>
-                          <span className="font-semibold text-[#555]">
-                            [{question.marks} Marks]
+
+                  {/* Questions */}
+                  <ol className="mt-4 space-y-5">
+                    {section.questions.map((question) => {
+                      globalQ += 1;
+                      const qNum = globalQ;
+                      return (
+                        <li
+                          key={question.id}
+                          className="flex gap-3 text-[13px] leading-7 md:text-[14px] md:leading-8"
+                        >
+                          <span className="shrink-0 font-bold">{qNum}.</span>
+                          <span className="flex-1">{question.text}</span>
+                          <span className="shrink-0 self-start pt-0.5 font-semibold text-[#555]">
+                            [{question.marks}]
                           </span>
-                        </div>
-                      </li>
-                    ))}
+                        </li>
+                      );
+                    })}
                   </ol>
                 </section>
               ))}
 
-              <p className="mt-10 text-[15px] font-bold md:text-[18px]">End of Question Paper</p>
+              {/* ── End of paper ── */}
+              <p className="mt-10 border-t border-[#ddd] pt-4 text-center text-[12px] font-bold uppercase tracking-widest md:text-[13px]">
+                *** End of Question Paper ***
+              </p>
 
-              <section className="mt-12 md:mt-16">
-                <h2 className="text-[22px] font-extrabold md:text-[30px]">Answer Key:</h2>
-                <ol className="mt-5 space-y-3 text-[14px] leading-7 text-[#333] md:mt-6 md:text-[17px] md:leading-8">
-                  {paper.answerKey.map((answer) => (
-                    <li key={answer.id} className="list-decimal">
-                      <span className="ml-2">{answer.text}</span>
+              {/* ── Answer Key (screen only) ── */}
+              <section className="print:hidden mt-10 rounded-[20px] bg-[#f7f7f7] px-5 py-6 md:px-8 md:py-8">
+                <h2 className="text-[18px] font-extrabold tracking-[-0.02em] text-[#2d2d2d] md:text-[22px]">
+                  Answer Key
+                </h2>
+                <p className="mb-4 text-[12px] text-[#999] md:text-[13px]">
+                  Hidden in the printed / PDF version.
+                </p>
+                <ol className="space-y-3 text-[12px] leading-7 text-[#333] md:text-[14px] md:leading-8">
+                  {paper.answerKey.map((answer, idx) => (
+                    <li key={answer.id} className="flex gap-3">
+                      <span className="shrink-0 font-bold">{idx + 1}.</span>
+                      <span>{answer.text}</span>
                     </li>
                   ))}
                 </ol>

@@ -66,55 +66,52 @@ function buildPrompt(assignment: Assignment): string {
     .map((qt, i) => `Section ${String.fromCharCode(65 + i)}: ${qt.type} — ${qt.count} question(s) × ${qt.marks} mark(s) each`)
     .join("\n");
 
-  const fileSection = assignment.extractedText
-    ? `\nUploaded document content (use this as the primary source material for questions):\n"""\n${assignment.extractedText.slice(0, 6000)}\n"""`
+  const hasSource = Boolean(assignment.extractedText);
+
+  const fileSection = hasSource
+    ? `\n\n=== UPLOADED SOURCE DOCUMENT ===\n${assignment.extractedText!.slice(0, 8000)}\n=== END OF SOURCE DOCUMENT ===`
     : "";
 
-  return `You are an expert teacher. Generate a complete, high-quality question paper as valid JSON.
+  const sourceRule = hasSource
+    ? `\n\nMANDATORY RULE: Every single question must be drawn DIRECTLY from the SOURCE DOCUMENT above. Do NOT include any question about a topic, fact, concept, diagram, or example that does not appear in that document. Treat the document as the only allowed knowledge base.`
+    : `\n\nBase questions on the ${assignment.board} curriculum for ${assignment.className} ${assignment.subject}.`;
 
-Assignment details:
+  return `You are an expert ${assignment.board} teacher creating an examination paper.${fileSection}${sourceRule}
+
+Exam details:
 - School: ${assignment.schoolName}
 - Board: ${assignment.board}
 - Class: ${assignment.className}
 - Subject: ${assignment.subject}
-- Instructions / syllabus focus: ${assignment.instructions}
-- Due date: ${assignment.dueDate}${fileSection}
+- Teacher notes: ${assignment.instructions}
 
-Sections required:
+Sections required (generate EXACTLY the number of questions specified):
 ${sectionSpecs}
 
-Return ONLY a JSON object (no markdown, no code fences) matching exactly this TypeScript shape:
+Return ONLY a valid JSON object (no markdown, no code fences) with this exact shape:
 {
-  "greeting": string,            // friendly teacher message confirming the paper
+  "greeting": string,
   "paperTitle": string,
   "schoolName": string,
   "subject": string,
   "className": string,
-  "timeAllowed": string,         // e.g. "3 hours"
-  "maximumMarks": number,        // sum of all marks
-  "studentFields": string[],     // e.g. ["Name","Roll Number","Section"]
-  "sections": [
-    {
+  "timeAllowed": string,
+  "maximumMarks": number,
+  "studentFields": string[],
+  "sections": [{
+    "id": string,
+    "title": string,
+    "instruction": string,
+    "questions": [{
       "id": string,
-      "title": string,           // question type name
-      "instruction": string,     // section-level instruction
-      "questions": [
-        {
-          "id": string,          // e.g. "q-1"
-          "text": string,        // full question text
-          "difficulty": "Easy" | "Moderate" | "Challenging",
-          "marks": number,
-          "answer": string       // model answer
-        }
-      ]
-    }
-  ],
-  "answerKey": [
-    { "id": string, "text": string }
-  ]
-}
-
-Make the questions genuinely relevant to the subject, class, board, and syllabus focus provided.`;
+      "text": string,
+      "difficulty": "Easy" | "Moderate" | "Challenging",
+      "marks": number,
+      "answer": string
+    }]
+  }],
+  "answerKey": [{ "id": string, "text": string }]
+}`;
 }
 
 export async function generateQuestionPaper(assignment: Assignment): Promise<GeneratedPaper> {

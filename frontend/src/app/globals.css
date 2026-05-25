@@ -41,6 +41,11 @@ select {
   font: inherit;
 }
 
+@page {
+  size: A4;
+  margin: 2cm;
+}
+
 @media print {
   body {
     background: white;
@@ -55,10 +60,19 @@ select {
     visibility: visible;
   }
 
+  /* Answer key and greeting card are screen-only */
+  .print\:hidden {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
   #print-paper {
     position: absolute;
     left: 0;
     top: 0;
     width: 100%;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 12pt;
+    color: #000;
   }
 }
