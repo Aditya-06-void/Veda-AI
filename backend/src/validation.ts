@@ -15,5 +15,6 @@ export const createAssignmentSchema = z.object({
   dueDate: z.string().min(1),
   instructions: z.string().min(10),
   fileName: z.string().optional(),
+  extractedText: z.string().optional(),
   questionTypes: z.array(questionTypeSchema).min(1),
 });

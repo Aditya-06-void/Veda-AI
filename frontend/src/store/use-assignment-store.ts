@@ -8,6 +8,7 @@ import {
   fetchAssignments,
   generateAssignment,
   regenerateAssignment,
+  uploadAssignmentFile,
 } from "@/lib/api";
 import { socket } from "@/lib/socket";
 import { Assignment, AssignmentFormValues } from "@/lib/types";
@@ -103,6 +104,17 @@ export const useAssignmentStore = create<AssignmentStore>((set, get) => ({
       const { assignment } = await createAssignment(values);
       get().hydrateAssignment(assignment);
       set({ activeAssignmentId: assignment.id, view: "output", nav: "toolkit" });
+
+      // Upload file and extract text before triggering generation
+      if (values.file) {
+        try {
+          const { assignment: withFile } = await uploadAssignmentFile(assignment.id, values.file);
+          get().hydrateAssignment(withFile);
+        } catch {
+          // Non-fatal: proceed without file content
+        }
+      }
+
       await generateAssignment(assignment.id);
     } catch (error) {
       set({

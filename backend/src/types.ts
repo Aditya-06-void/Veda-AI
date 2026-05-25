@@ -57,6 +57,7 @@ export type Assignment = {
   createdAt: string;
   status: AssignmentStatus;
   fileName?: string;
+  extractedText?: string;
   generatedPaper?: GeneratedPaper;
 };
 
@@ -69,4 +70,5 @@ export type CreateAssignmentInput = {
   instructions: string;
   questionTypes: QuestionTypeItem[];
   fileName?: string;
+  extractedText?: string;
 };

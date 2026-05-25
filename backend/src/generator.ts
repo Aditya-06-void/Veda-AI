@@ -66,6 +66,10 @@ function buildPrompt(assignment: Assignment): string {
     .map((qt, i) => `Section ${String.fromCharCode(65 + i)}: ${qt.type} — ${qt.count} question(s) × ${qt.marks} mark(s) each`)
     .join("\n");
 
+  const fileSection = assignment.extractedText
+    ? `\nUploaded document content (use this as the primary source material for questions):\n"""\n${assignment.extractedText.slice(0, 6000)}\n"""`
+    : "";
+
   return `You are an expert teacher. Generate a complete, high-quality question paper as valid JSON.
 
 Assignment details:
@@ -74,7 +78,7 @@ Assignment details:
 - Class: ${assignment.className}
 - Subject: ${assignment.subject}
 - Instructions / syllabus focus: ${assignment.instructions}
-- Due date: ${assignment.dueDate}
+- Due date: ${assignment.dueDate}${fileSection}
 
 Sections required:
 ${sectionSpecs}

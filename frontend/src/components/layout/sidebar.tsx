@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  BookOpen,
   Bot,
   ClipboardList,
   Grid2X2,
@@ -10,6 +9,7 @@ import {
   Sparkles,
   Users,
 } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
@@ -42,9 +42,14 @@ export function Sidebar({ assignmentCount = 10 }: { assignmentCount?: number }) 
     <Card className="hidden h-full w-65 flex-none flex-col justify-between overflow-y-auto rounded-[26px] px-4 py-5 lg:flex">
       <div className="space-y-8">
         <Link href="/home" className="flex items-center gap-3 px-2">
-          <div className="flex size-10 items-center justify-center rounded-2xl bg-[linear-gradient(180deg,#F8B661_0%,#A3402D_100%)] shadow-lg">
-            <BookOpen className="size-5 text-white" />
-          </div>
+          <Image
+            src="/logo.avif"
+            alt="VedaAI logo"
+            width={40}
+            height={40}
+            className="rounded-2xl shadow-md"
+            unoptimized
+          />
           <div className="text-[19px] font-extrabold text-[#292929]">VedaAI</div>
         </Link>
 

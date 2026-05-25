@@ -63,6 +63,7 @@ const assignmentSchema = new Schema<AssignmentDocument>(
     createdAt: String,
     status: String,
     fileName: String,
+    extractedText: String,
     generatedPaper: {
       type: {
       greeting: String,
@@ -124,6 +125,7 @@ function toAssignment(document: AssignmentDocument): Assignment {
     createdAt: document.createdAt,
     status: document.status as AssignmentStatus,
     fileName: document.fileName,
+    extractedText: document.extractedText,
     generatedPaper,
   };
 }
@@ -139,6 +141,23 @@ export async function listAssignments() {
   return [...memoryAssignments.values()].sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
   );
+}
+
+export async function listAssignmentsPaginated(page: number, limit: number) {
+  const skip = (page - 1) * limit;
+
+  if (mongoReady) {
+    const [documents, total] = await Promise.all([
+      AssignmentModel.find().sort({ createdAt: -1 }).skip(skip).limit(limit),
+      AssignmentModel.countDocuments(),
+    ]);
+    return { assignments: documents.map(toAssignment), total };
+  }
+
+  const all = [...memoryAssignments.values()].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  );
+  return { assignments: all.slice(skip, skip + limit), total: all.length };
 }
 
 export async function saveAssignment(assignment: Assignment) {

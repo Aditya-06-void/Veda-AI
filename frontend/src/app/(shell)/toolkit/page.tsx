@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  BookOpen,
   Bot,
   ChevronRight,
   ClipboardList,
@@ -12,7 +11,6 @@ import {
   Sparkles,
   Star,
   X,
-  Zap,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -44,9 +42,9 @@ type Field = {
 const tools: Tool[] = [
   {
     id: "lesson-plan",
-    label: "Lesson Plan Generator",
+    label: "Lesson Plan",
     description: "AI-crafted lesson plans aligned to your syllabus",
-    icon: BookOpen,
+    icon: ClipboardList,
     color: "#ff6f2c",
     bg: "#fff3ee",
     fields: [
@@ -61,7 +59,7 @@ const tools: Tool[] = [
     id: "quiz",
     label: "Quiz Creator",
     description: "Instant quizzes with MCQs, short answers & answer keys",
-    icon: Zap,
+    icon: Sparkles,
     color: "#6366f1",
     bg: "#eef2ff",
     fields: [
@@ -88,7 +86,7 @@ const tools: Tool[] = [
   },
   {
     id: "study-guide",
-    label: "Study Guide Creator",
+    label: "Study Guide",
     description: "Comprehensive revision guides with key concepts & tips",
     icon: FileText,
     color: "#0ea5e9",
@@ -104,7 +102,7 @@ const tools: Tool[] = [
     id: "rubric",
     label: "Rubric Builder",
     description: "4-level assessment rubrics with clear descriptors",
-    icon: ClipboardList,
+    icon: Star,
     color: "#f59e0b",
     bg: "#fffbeb",
     fields: [
@@ -130,64 +128,14 @@ const tools: Tool[] = [
   },
 ];
 
-function ToolCard({
-  tool,
-  selected,
-  onSelect,
-}: {
-  tool: Tool;
-  selected: boolean;
-  onSelect: () => void;
-}) {
-  return (
-    <button
-      onClick={onSelect}
-      className={cn(
-        "group w-full rounded-[24px] p-5 text-left transition-all",
-        selected
-          ? "ring-2 shadow-lg"
-          : "bg-white/80 hover:shadow-md active:scale-[0.98]",
-      )}
-      style={selected ? { background: tool.bg, outline: `2px solid ${tool.color}`, outlineOffset: "0px" } : {}}
-    >
-      <div className="flex items-start justify-between">
-        <div
-          className="flex size-11 items-center justify-center rounded-2xl"
-          style={{ background: selected ? "white" : tool.bg }}
-        >
-          <tool.icon className="size-5" style={{ color: tool.color }} />
-        </div>
-        {selected && (
-          <span
-            className="flex size-6 items-center justify-center rounded-full text-white"
-            style={{ background: tool.color }}
-          >
-            <Star className="size-3 fill-white" />
-          </span>
-        )}
-      </div>
-      <div className="mt-3 font-bold text-[#2d2d2d]">{tool.label}</div>
-      <div className="mt-0.5 text-xs text-[#888] leading-relaxed">{tool.description}</div>
-      <div
-        className="mt-3 flex items-center gap-1 text-xs font-semibold opacity-0 transition-opacity group-hover:opacity-100"
-        style={{ color: tool.color }}
-      >
-        Use tool <ChevronRight className="size-3" />
-      </div>
-    </button>
-  );
-}
-
 function renderOutput(text: string) {
-  const lines = text.split("\n");
-  return lines.map((line, i) => {
-    if (line.startsWith("## ")) return <h2 key={i} className="mt-4 mb-1 text-[16px] font-extrabold text-[#2d2d2d]">{line.slice(3)}</h2>;
-    if (line.startsWith("# ")) return <h1 key={i} className="mt-4 mb-2 text-[18px] font-extrabold text-[#2d2d2d]">{line.slice(2)}</h1>;
-    if (line.startsWith("**") && line.endsWith("**")) return <p key={i} className="font-bold text-[#2d2d2d]">{line.slice(2, -2)}</p>;
-    if (line.startsWith("- ") || line.startsWith("• ")) return <li key={i} className="ml-4 text-sm text-[#444] list-disc">{line.slice(2)}</li>;
-    if (line.match(/^\d+\./)) return <li key={i} className="ml-4 text-sm text-[#444] list-decimal">{line.replace(/^\d+\.\s*/, "")}</li>;
+  return text.split("\n").map((line, i) => {
+    if (line.startsWith("## ")) return <h2 key={i} className="mt-4 mb-1 text-sm font-extrabold text-[#2d2d2d] sm:text-base">{line.slice(3)}</h2>;
+    if (line.startsWith("# ")) return <h1 key={i} className="mt-4 mb-2 text-base font-extrabold text-[#2d2d2d] sm:text-lg">{line.slice(2)}</h1>;
+    if (line.startsWith("- ") || line.startsWith("• ")) return <li key={i} className="ml-4 list-disc text-xs text-[#444] sm:text-sm">{line.slice(2)}</li>;
+    if (/^\d+\./.test(line)) return <li key={i} className="ml-4 list-decimal text-xs text-[#444] sm:text-sm">{line.replace(/^\d+\.\s*/, "")}</li>;
     if (line.trim() === "") return <div key={i} className="h-2" />;
-    return <p key={i} className="text-sm text-[#444] leading-relaxed">{line}</p>;
+    return <p key={i} className="text-xs leading-relaxed text-[#444] sm:text-sm">{line}</p>;
   });
 }
 
@@ -251,9 +199,7 @@ export default function ToolkitPage() {
             if (parsed.error) throw new Error(parsed.error);
             if (parsed.token) setOutput((prev) => prev + parsed.token);
           } catch (parseErr) {
-            if (parseErr instanceof Error && parseErr.message !== "Unexpected token") {
-              throw parseErr;
-            }
+            if (parseErr instanceof Error && parseErr.message !== "Unexpected token") throw parseErr;
           }
         }
       }
@@ -270,78 +216,92 @@ export default function ToolkitPage() {
       <MobileHeader title="AI Toolkit" />
 
       {/* Hero */}
-      <Card className="rounded-[28px] bg-[#2a2a2a] px-6 py-5 text-white">
-        <div className="flex items-start gap-4">
-          <div className="flex size-12 flex-none items-center justify-center rounded-2xl bg-[#ff6f2c]/20">
-            <Bot className="size-6 text-[#ff6f2c]" />
+      <Card className="rounded-[28px] bg-[#2a2a2a] px-4 py-5 text-white sm:px-6">
+        <div className="flex items-start gap-3 sm:gap-4">
+          <div className="flex size-10 flex-none items-center justify-center rounded-2xl bg-[#ff6f2c]/20 sm:size-12">
+            <Bot className="size-5 text-[#ff6f2c] sm:size-6" />
           </div>
           <div>
-            <h1 className="text-[22px] font-extrabold">AI Teacher's Toolkit</h1>
-            <p className="mt-1 text-sm text-white/60">
-              6 AI-powered tools to save hours of prep — powered by NVIDIA LLM
+            <h1 className="text-[18px] font-extrabold sm:text-[22px]">AI Teacher's Toolkit</h1>
+            <p className="mt-0.5 text-xs text-white/60 sm:text-sm">
+              6 AI-powered tools — powered by NVIDIA LLM
             </p>
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {["Lesson Plans", "Quizzes", "Feedback", "Guides", "Rubrics", "Explainers"].map((tag) => (
+                <span key={tag} className="rounded-full bg-white/10 px-2.5 py-0.5 text-[10px] text-white/80 sm:px-3 sm:py-1 sm:text-xs">{tag}</span>
+              ))}
+            </div>
           </div>
-        </div>
-        <div className="mt-4 flex flex-wrap gap-2">
-          {["Lesson Plans", "Quizzes", "Student Feedback", "Study Guides", "Rubrics", "Explainers"].map((tag) => (
-            <span key={tag} className="rounded-full bg-white/10 px-3 py-1 text-xs text-white/80">
-              {tag}
-            </span>
-          ))}
         </div>
       </Card>
 
       {/* Tool grid */}
       <div>
-        <h2 className="mb-3 px-1 text-[15px] font-bold text-[#2d2d2d]">
+        <h2 className="mb-3 px-1 text-sm font-bold text-[#2d2d2d]">
           {activeTool ? `Selected: ${activeTool.label}` : "Choose a Tool"}
         </h2>
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-          {tools.map((tool) => (
-            <ToolCard
-              key={tool.id}
-              tool={tool}
-              selected={activeTool?.id === tool.id}
-              onSelect={() => handleSelectTool(tool)}
-            />
-          ))}
+        <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3">
+          {tools.map((tool) => {
+            const selected = activeTool?.id === tool.id;
+            return (
+              <button
+                key={tool.id}
+                onClick={() => handleSelectTool(tool)}
+                className={cn(
+                  "group w-full rounded-[20px] p-3 text-left transition-all sm:rounded-[24px] sm:p-4",
+                  selected ? "shadow-lg" : "bg-white/80 hover:shadow-md active:scale-[0.98]",
+                )}
+                style={selected ? { background: tool.bg, outline: `2px solid ${tool.color}`, outlineOffset: "0px" } : {}}
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex size-9 items-center justify-center rounded-xl sm:size-11 sm:rounded-2xl" style={{ background: selected ? "white" : tool.bg }}>
+                    <tool.icon className="size-4 sm:size-5" style={{ color: tool.color }} />
+                  </div>
+                  {selected && (
+                    <span className="flex size-5 items-center justify-center rounded-full text-white sm:size-6" style={{ background: tool.color }}>
+                      <Star className="size-2.5 fill-white sm:size-3" />
+                    </span>
+                  )}
+                </div>
+                <div className="mt-2 text-xs font-bold text-[#2d2d2d] sm:mt-3 sm:text-sm">{tool.label}</div>
+                <div className="mt-0.5 hidden text-[10px] leading-relaxed text-[#888] sm:block sm:text-xs">{tool.description}</div>
+                <div className="mt-2 flex items-center gap-0.5 text-[10px] font-semibold opacity-0 transition-opacity group-hover:opacity-100 sm:gap-1 sm:text-xs" style={{ color: tool.color }}>
+                  Use <ChevronRight className="size-2.5 sm:size-3" />
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
 
       {/* Active tool panel */}
       {activeTool && (
-        <Card className="rounded-[28px] p-5">
-          <div className="mb-5 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div
-                className="flex size-10 items-center justify-center rounded-2xl"
-                style={{ background: activeTool.bg }}
-              >
-                <activeTool.icon className="size-5" style={{ color: activeTool.color }} />
+        <Card className="rounded-[28px] p-4 sm:p-5">
+          <div className="mb-4 flex items-center justify-between">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="flex size-9 items-center justify-center rounded-xl sm:size-10 sm:rounded-2xl" style={{ background: activeTool.bg }}>
+                <activeTool.icon className="size-4 sm:size-5" style={{ color: activeTool.color }} />
               </div>
               <div>
-                <div className="font-bold text-[#2d2d2d]">{activeTool.label}</div>
-                <div className="text-xs text-[#888]">{activeTool.description}</div>
+                <div className="text-sm font-bold text-[#2d2d2d] sm:text-base">{activeTool.label}</div>
+                <div className="hidden text-xs text-[#888] sm:block">{activeTool.description}</div>
               </div>
             </div>
-            <button
-              onClick={handleClose}
-              className="flex size-8 items-center justify-center rounded-full text-[#aaa] hover:bg-[#f3f3f3] hover:text-[#2d2d2d]"
-            >
+            <button onClick={handleClose} className="flex size-8 items-center justify-center rounded-full text-[#aaa] hover:bg-[#f3f3f3] hover:text-[#2d2d2d]">
               <X className="size-4" />
             </button>
           </div>
 
           {/* Input fields */}
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-2 sm:gap-3 sm:grid-cols-2">
             {activeTool.fields.map((field) => (
               <div key={field.key} className={field.type === "textarea" ? "sm:col-span-2" : ""}>
-                <label className="mb-1 block text-xs font-semibold text-[#888]">{field.label}</label>
+                <label className="mb-1 block text-[10px] font-semibold text-[#888] sm:text-xs">{field.label}</label>
                 {field.type === "select" ? (
                   <select
                     value={inputs[field.key] ?? ""}
                     onChange={(e) => setInputs({ ...inputs, [field.key]: e.target.value })}
-                    className="w-full rounded-2xl border border-[#e8e8e8] bg-[#f8f8f7] px-4 py-2.5 text-sm outline-none focus:border-[#ff6f2c]"
+                    className="w-full rounded-xl border border-[#e8e8e8] bg-[#f8f8f7] px-3 py-2 text-xs outline-none focus:border-[#ff6f2c] sm:rounded-2xl sm:px-4 sm:py-2.5 sm:text-sm"
                   >
                     <option value="">{field.placeholder}</option>
                     {field.options?.map((o) => <option key={o}>{o}</option>)}
@@ -352,7 +312,7 @@ export default function ToolkitPage() {
                     value={inputs[field.key] ?? ""}
                     onChange={(e) => setInputs({ ...inputs, [field.key]: e.target.value })}
                     rows={3}
-                    className="w-full rounded-2xl border border-[#e8e8e8] bg-[#f8f8f7] px-4 py-2.5 text-sm outline-none focus:border-[#ff6f2c] resize-none"
+                    className="w-full resize-none rounded-xl border border-[#e8e8e8] bg-[#f8f8f7] px-3 py-2 text-xs outline-none focus:border-[#ff6f2c] sm:rounded-2xl sm:px-4 sm:py-2.5 sm:text-sm"
                   />
                 ) : (
                   <input
@@ -360,7 +320,7 @@ export default function ToolkitPage() {
                     placeholder={field.placeholder}
                     value={inputs[field.key] ?? ""}
                     onChange={(e) => setInputs({ ...inputs, [field.key]: e.target.value })}
-                    className="w-full rounded-2xl border border-[#e8e8e8] bg-[#f8f8f7] px-4 py-2.5 text-sm outline-none focus:border-[#ff6f2c]"
+                    className="w-full rounded-xl border border-[#e8e8e8] bg-[#f8f8f7] px-3 py-2 text-xs outline-none focus:border-[#ff6f2c] sm:rounded-2xl sm:px-4 sm:py-2.5 sm:text-sm"
                   />
                 )}
               </div>
@@ -370,56 +330,39 @@ export default function ToolkitPage() {
           <Button
             onClick={handleGenerate}
             disabled={generating}
-            className="mt-4 rounded-full bg-[#2a2a2a] px-8"
+            className="mt-4 rounded-full px-6 text-sm"
             style={generating ? {} : { background: activeTool.color }}
           >
             {generating ? (
-              <>
-                <div className="size-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                Generating...
-              </>
+              <><div className="size-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />Generating...</>
             ) : (
-              <>
-                <Sparkles className="size-4" />
-                Generate with AI
-              </>
+              <><Sparkles className="size-4" />Generate with AI</>
             )}
           </Button>
 
-          {error && (
-            <div className="mt-4 rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>
-          )}
+          {error && <div className="mt-4 rounded-2xl bg-rose-50 px-4 py-3 text-xs text-rose-700 sm:text-sm">{error}</div>}
 
-          {/* Output area */}
+          {/* Streaming output */}
           {(output || generating) && (
-            <div className="mt-5 rounded-[20px] border border-[#f0f0f0] bg-[#fafaf9] p-5">
+            <div className="mt-4 rounded-[20px] border border-[#f0f0f0] bg-[#fafaf9] p-4 sm:mt-5 sm:p-5">
               <div className="mb-3 flex items-center gap-2">
-                <Bot className="size-4 text-[#ff6f2c]" />
-                <span className="text-xs font-semibold text-[#888]">AI Output</span>
+                <Bot className="size-3.5 text-[#ff6f2c] sm:size-4" />
+                <span className="text-[10px] font-semibold text-[#888] sm:text-xs">AI Output</span>
                 {generating && (
-                  <span className="ml-1 flex items-center gap-1 text-xs text-[#ff6f2c]">
-                    <span className="inline-block size-1.5 animate-bounce rounded-full bg-[#ff6f2c]" />
-                    <span className="inline-block size-1.5 animate-bounce rounded-full bg-[#ff6f2c] [animation-delay:0.15s]" />
-                    <span className="inline-block size-1.5 animate-bounce rounded-full bg-[#ff6f2c] [animation-delay:0.3s]" />
+                  <span className="ml-1 flex items-center gap-1">
+                    {[0, 150, 300].map((d) => (
+                      <span key={d} className="inline-block size-1.5 animate-bounce rounded-full bg-[#ff6f2c]" style={{ animationDelay: `${d}ms` }} />
+                    ))}
                   </span>
                 )}
               </div>
-              <div className="space-y-1 text-[#2d2d2d]">{renderOutput(output)}</div>
+              <div className="space-y-1">{renderOutput(output)}</div>
               {output && !generating && (
-                <div className="mt-4 flex gap-3">
-                  <Button
-                    variant="secondary"
-                    className="rounded-full text-sm shadow-none"
-                    onClick={() => navigator.clipboard.writeText(output)}
-                  >
-                    <Send className="size-3" />
-                    Copy
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Button variant="secondary" className="rounded-full text-xs shadow-none sm:text-sm" onClick={() => navigator.clipboard.writeText(output)}>
+                    <Send className="size-3" /> Copy
                   </Button>
-                  <Button
-                    variant="secondary"
-                    className="rounded-full text-sm shadow-none"
-                    onClick={() => window.print()}
-                  >
+                  <Button variant="secondary" className="rounded-full text-xs shadow-none sm:text-sm" onClick={() => window.print()}>
                     Download PDF
                   </Button>
                 </div>
@@ -429,23 +372,21 @@ export default function ToolkitPage() {
         </Card>
       )}
 
-      {/* Tips row */}
+      {/* How it works */}
       {!activeTool && (
-        <Card className="rounded-[28px] p-5">
-          <h2 className="mb-4 font-bold text-[#2d2d2d]">How it works</h2>
-          <div className="grid gap-4 sm:grid-cols-3">
+        <Card className="rounded-[28px] p-4 sm:p-5">
+          <h2 className="mb-3 text-sm font-bold text-[#2d2d2d] sm:mb-4 sm:text-base">How it works</h2>
+          <div className="grid gap-3 sm:grid-cols-3 sm:gap-4">
             {[
               { step: "1", title: "Pick a tool", desc: "Choose from 6 AI-powered educator tools above." },
               { step: "2", title: "Fill in details", desc: "Enter subject, class, topic and any other needed info." },
               { step: "3", title: "Get AI output", desc: "NVIDIA LLM generates curriculum-aligned content instantly." },
             ].map((s) => (
               <div key={s.step} className="flex items-start gap-3">
-                <div className="flex size-8 flex-none items-center justify-center rounded-full bg-[#ff6f2c] text-sm font-extrabold text-white">
-                  {s.step}
-                </div>
+                <div className="flex size-7 flex-none items-center justify-center rounded-full bg-[#ff6f2c] text-xs font-extrabold text-white sm:size-8 sm:text-sm">{s.step}</div>
                 <div>
-                  <div className="font-bold text-[#2d2d2d]">{s.title}</div>
-                  <div className="mt-0.5 text-sm text-[#888]">{s.desc}</div>
+                  <div className="text-sm font-bold text-[#2d2d2d]">{s.title}</div>
+                  <div className="mt-0.5 text-xs text-[#888]">{s.desc}</div>
                 </div>
               </div>
             ))}
