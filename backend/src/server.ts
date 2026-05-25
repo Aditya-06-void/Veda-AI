@@ -9,6 +9,7 @@ import { cacheAssignments, clearAssignmentCache, connectRedis, readCachedAssignm
 import { config } from "./config";
 import { connectMongo, deleteAssignment, getAssignment, listAssignments, saveAssignment } from "./repository";
 import { enqueueGeneration, initializeQueue } from "./queue";
+import { streamToolkitResponse, type ToolInput } from "./toolkit";
 import { CreateAssignmentInput, type Assignment } from "./types";
 import { createAssignmentSchema } from "./validation";
 
@@ -145,6 +146,38 @@ app.post("/api/assignments/:assignmentId/regenerate", async (request, response) 
 
   await publishAssignmentUpdate(queued);
   response.json({ assignment: queued });
+});
+
+// ── Toolkit: streaming NVIDIA LLM for all 6 educator tools ─────────────────
+app.post("/api/toolkit/generate", async (request, response) => {
+  if (!config.nvidiaApiKey) {
+    response.status(500).json({ message: "NVIDIA_API_KEY not configured on server." });
+    return;
+  }
+
+  const input = request.body as ToolInput;
+  if (!input.tool) {
+    response.status(400).json({ message: "Missing 'tool' field in request body." });
+    return;
+  }
+
+  response.setHeader("Content-Type", "text/event-stream");
+  response.setHeader("Cache-Control", "no-cache");
+  response.setHeader("Connection", "keep-alive");
+  response.setHeader("Access-Control-Allow-Origin", "*");
+  response.flushHeaders();
+
+  try {
+    await streamToolkitResponse(input, (token) => {
+      response.write(`data: ${JSON.stringify({ token })}\n\n`);
+    });
+    response.write("data: [DONE]\n\n");
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Generation failed";
+    response.write(`data: ${JSON.stringify({ error: message })}\n\n`);
+  } finally {
+    response.end();
+  }
 });
 
 io.on("connection", (socket) => {

@@ -20,6 +20,7 @@ import { MobileHeader } from "@/components/layout/mobile-header";
 import { Topbar } from "@/components/layout/topbar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { API_BASE } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 type Tool = {
@@ -217,15 +218,15 @@ export default function ToolkitPage() {
     setError("");
 
     try {
-      const response = await fetch("/api/toolkit", {
+      const response = await fetch(`${API_BASE}/api/toolkit/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tool: activeTool.id, ...inputs }),
       });
 
       if (!response.ok) {
-        const err = await response.json() as { error?: string };
-        throw new Error(err.error ?? "Generation failed");
+        const err = await response.json() as { message?: string };
+        throw new Error(err.message ?? "Generation failed");
       }
 
       const reader = response.body?.getReader();
@@ -244,13 +245,15 @@ export default function ToolkitPage() {
         for (const line of lines) {
           if (!line.startsWith("data: ")) continue;
           const data = line.slice(6).trim();
-          if (data === "[DONE]") continue;
+          if (data === "[DONE]") break;
           try {
-            const parsed = JSON.parse(data) as { choices?: { delta?: { content?: string } }[] };
-            const token = parsed.choices?.[0]?.delta?.content ?? "";
-            if (token) setOutput((prev) => prev + token);
-          } catch {
-            // ignore parse errors on non-JSON lines
+            const parsed = JSON.parse(data) as { token?: string; error?: string };
+            if (parsed.error) throw new Error(parsed.error);
+            if (parsed.token) setOutput((prev) => prev + parsed.token);
+          } catch (parseErr) {
+            if (parseErr instanceof Error && parseErr.message !== "Unexpected token") {
+              throw parseErr;
+            }
           }
         }
       }
