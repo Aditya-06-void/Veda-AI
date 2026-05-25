@@ -81,6 +81,7 @@ function QuantityControl({ value, onChange }: { value: number; onChange: (next: 
 export function AssignmentForm({ onSubmit, submitting, onCancel }: Props) {
   const [questionTypes, setQuestionTypes] = useState<QuestionTypeItem[]>(defaultQuestionTypes);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
   const totals = useMemo(() => totalFrom(questionTypes), [questionTypes]);
 
   const form = useForm({
@@ -143,7 +144,14 @@ export function AssignmentForm({ onSubmit, submitting, onCancel }: Props) {
         <form
           className="space-y-8"
           onSubmit={form.handleSubmit(async (values) =>
-            onSubmit({ ...values, questionTypes, file: selectedFile }),
+            {
+            if (!selectedFile) {
+              setFileError("Please upload a source file before continuing.");
+              return;
+            }
+            setFileError(null);
+            onSubmit({ ...values, questionTypes, file: selectedFile });
+          },
           )}
         >
           {/* File upload */}
@@ -162,13 +170,19 @@ export function AssignmentForm({ onSubmit, submitting, onCancel }: Props) {
                   type="file"
                   accept=".pdf,.txt,.csv"
                   className="hidden"
-                  onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
+                  onChange={(event) => {
+                    setSelectedFile(event.target.files?.[0] ?? null);
+                    setFileError(null);
+                  }}
                 />
               </label>
             </div>
             <p className="mt-4 text-[#8b8b8b]">
               {selectedFile ? `Selected: ${selectedFile.name}` : "Upload a PDF or text file to use as source material"}
             </p>
+            {fileError && (
+              <p className="mt-2 text-sm font-medium text-red-500">{fileError}</p>
+            )}
           </div>
 
           {/* Fields grid */}
