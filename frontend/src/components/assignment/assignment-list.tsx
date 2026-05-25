@@ -12,7 +12,6 @@ import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Assignment } from "@/lib/types";
-import { demoAssignments } from "@/lib/constants";
 import { cn, formatDate } from "@/lib/utils";
 
 type Props = {
@@ -30,29 +29,10 @@ export function AssignmentList({
 }: Props) {
   const [search, setSearch] = useState("");
 
-  const items = useMemo(() => {
-    const merged = assignments.length
-      ? assignments
-      : demoAssignments.map((item, index) => ({
-          id: `demo-${index}`,
-          title: item.title,
-          schoolName: "Delhi Public School",
-          board: "CBSE",
-          className: "Grade 8",
-          subject: "Science",
-          dueDate: item.dueDate,
-          instructions: "",
-          questionTypes: [],
-          totalQuestions: 25,
-          totalMarks: 60,
-          createdAt: item.createdAt,
-          status: "draft" as const,
-        }));
-
-    return merged.filter((assignment) =>
-      assignment.title.toLowerCase().includes(search.toLowerCase()),
-    );
-  }, [assignments, search]);
+  const items = useMemo(
+    () => assignments.filter((a) => a.title.toLowerCase().includes(search.toLowerCase())),
+    [assignments, search],
+  );
 
   return (
     <div className="space-y-5">
@@ -110,6 +90,14 @@ export function AssignmentList({
         </div>
       </div>
 
+      {items.length === 0 && (
+        <Card className="flex min-h-48 flex-col items-center justify-center rounded-[28px] text-center">
+          <Plus className="size-10 text-[#ddd]" />
+          <p className="mt-3 font-semibold text-[#888]">No assignments yet</p>
+          <p className="mt-1 text-sm text-[#bbb]">Click &quot;Create Assignment&quot; to get started</p>
+        </Card>
+      )}
+
       <div className="grid gap-4 md:grid-cols-2">
         {items.map((assignment) => (
           <Card
@@ -147,14 +135,12 @@ export function AssignmentList({
                     >
                       View Assignment
                     </DropdownMenu.Item>
-                    {!assignment.id.startsWith("demo-") ? (
-                      <DropdownMenu.Item
-                        onSelect={() => void onDelete(assignment.id)}
-                        className="cursor-pointer rounded-xl px-3 py-2 text-sm text-[#e64d3d] outline-none hover:bg-[#fff5f3]"
-                      >
-                        Delete
-                      </DropdownMenu.Item>
-                    ) : null}
+                    <DropdownMenu.Item
+                      onSelect={() => void onDelete(assignment.id)}
+                      className="cursor-pointer rounded-xl px-3 py-2 text-sm text-[#e64d3d] outline-none hover:bg-[#fff5f3]"
+                    >
+                      Delete
+                    </DropdownMenu.Item>
                   </DropdownMenu.Content>
                 </DropdownMenu.Portal>
               </DropdownMenu.Root>

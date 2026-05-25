@@ -26,6 +26,7 @@ import {
   saveAssignment,
   saveGroup,
   saveLibraryDoc,
+  seedAssignmentsIfEmpty,
   seedGroupsIfEmpty,
   seedLibraryDocsIfEmpty,
 } from "./repository";
@@ -340,6 +341,7 @@ async function start() {
   await connectMongo();
   await connectRedis();
   await initializeQueue({ onAssignmentUpdate: publishAssignmentUpdate });
+  await seedAssignmentsIfEmpty();
   await seedGroupsIfEmpty();
   await seedLibraryDocsIfEmpty();
 

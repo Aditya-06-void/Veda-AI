@@ -39,25 +39,3 @@ export const questionTypeOptions = [
   "Case Study Questions",
 ];
 
-export const demoAssignments = [
-  {
-    title: "Quiz on Electricity",
-    createdAt: "2025-06-20T00:00:00.000Z",
-    dueDate: "2025-06-21T00:00:00.000Z",
-  },
-  {
-    title: "Quiz on Density",
-    createdAt: "2025-06-20T00:00:00.000Z",
-    dueDate: "2025-06-21T00:00:00.000Z",
-  },
-  {
-    title: "Quiz on Force & Pressure",
-    createdAt: "2025-06-20T00:00:00.000Z",
-    dueDate: "2025-06-21T00:00:00.000Z",
-  },
-  {
-    title: "Quiz on Acids & Bases",
-    createdAt: "2025-06-20T00:00:00.000Z",
-    dueDate: "2025-06-21T00:00:00.000Z",
-  },
-];
