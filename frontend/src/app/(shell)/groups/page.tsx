@@ -6,51 +6,63 @@ import {
   FlaskConical,
   GraduationCap,
   Landmark,
+  Loader2,
   MoreHorizontal,
   Plus,
   Search,
   Users,
   Zap,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { MobileHeader } from "@/components/layout/mobile-header";
 import { Topbar } from "@/components/layout/topbar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { createGroup, deleteGroup, fetchGroups } from "@/lib/api";
+import { Group } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-type Group = {
-  id: string;
-  subject: string;
-  className: string;
-  students: number;
-  assignments: number;
-  color: string;
-  bg: string;
-  icon: React.ElementType;
-  board: string;
+const iconMap: Record<string, React.ElementType> = {
+  FlaskConical,
+  Zap,
+  BookOpen,
+  Landmark,
+  GraduationCap,
+  Users,
 };
 
-const demoGroups: Group[] = [
-  { id: "g1", subject: "Science", className: "Grade 8", students: 32, assignments: 4, color: "#10b981", bg: "#ecfdf5", icon: FlaskConical, board: "CBSE" },
-  { id: "g2", subject: "Mathematics", className: "Grade 10", students: 28, assignments: 6, color: "#6366f1", bg: "#eef2ff", icon: Zap, board: "CBSE" },
-  { id: "g3", subject: "English", className: "Grade 7", students: 35, assignments: 3, color: "#8b5cf6", bg: "#f5f3ff", icon: BookOpen, board: "ICSE" },
-  { id: "g4", subject: "Physics", className: "Grade 11", students: 25, assignments: 5, color: "#0ea5e9", bg: "#f0f9ff", icon: Zap, board: "CBSE" },
-  { id: "g5", subject: "Chemistry", className: "Grade 9", students: 30, assignments: 4, color: "#f59e0b", bg: "#fffbeb", icon: FlaskConical, board: "CBSE" },
-  { id: "g6", subject: "History", className: "Grade 8", students: 38, assignments: 2, color: "#ec4899", bg: "#fdf2f8", icon: Landmark, board: "ICSE" },
+const boardColors: Record<string, string> = { CBSE: "#0ea5e9", ICSE: "#8b5cf6", "State Board": "#10b981", IB: "#f59e0b" };
+
+const iconOptions = [
+  { name: "BookOpen", label: "Book" },
+  { name: "FlaskConical", label: "Flask" },
+  { name: "Zap", label: "Zap" },
+  { name: "Landmark", label: "Landmark" },
+  { name: "GraduationCap", label: "Graduation" },
 ];
 
-const boardColors: Record<string, string> = { CBSE: "#0ea5e9", ICSE: "#8b5cf6" };
+const colorOptions = [
+  { color: "#6366f1", bg: "#eef2ff" },
+  { color: "#10b981", bg: "#ecfdf5" },
+  { color: "#0ea5e9", bg: "#f0f9ff" },
+  { color: "#f59e0b", bg: "#fffbeb" },
+  { color: "#8b5cf6", bg: "#f5f3ff" },
+  { color: "#ec4899", bg: "#fdf2f8" },
+];
 
-function GroupCard({ group }: { group: Group }) {
+function GroupCard({ group, onDelete }: { group: Group; onDelete: (id: string) => void }) {
+  const Icon = iconMap[group.iconName] ?? BookOpen;
   return (
     <Card className="group rounded-3xl p-4 transition-all hover:shadow-lg sm:rounded-[28px] sm:p-5">
       <div className="flex items-start justify-between">
         <div className="flex size-11 items-center justify-center rounded-2xl" style={{ background: group.bg }}>
-          <group.icon className="size-5" style={{ color: group.color }} />
+          <Icon className="size-5" style={{ color: group.color }} />
         </div>
-        <button className="flex size-8 items-center justify-center rounded-full text-[#aaa] opacity-0 transition-opacity hover:bg-[#f3f3f3] hover:text-[#2d2d2d] group-hover:opacity-100">
+        <button
+          onClick={() => onDelete(group.id)}
+          className="flex size-8 items-center justify-center rounded-full text-[#aaa] opacity-0 transition-opacity hover:bg-[#f3f3f3] hover:text-[#2d2d2d] group-hover:opacity-100"
+        >
           <MoreHorizontal className="size-4" />
         </button>
       </div>
@@ -59,7 +71,7 @@ function GroupCard({ group }: { group: Group }) {
         <h3 className="text-base font-extrabold text-[#2d2d2d] sm:text-[17px]">{group.subject}</h3>
         <div className="mt-0.5 flex items-center gap-2">
           <span className="text-xs text-[#888] sm:text-sm">{group.className}</span>
-          <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: boardColors[group.board] + "18", color: boardColors[group.board] }}>
+          <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: (boardColors[group.board] ?? "#888") + "18", color: boardColors[group.board] ?? "#888" }}>
             {group.board}
           </span>
         </div>
@@ -90,19 +102,63 @@ function GroupCard({ group }: { group: Group }) {
 }
 
 export default function GroupsPage() {
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [showForm, setShowForm] = useState(false);
   const [boardFilter, setBoardFilter] = useState("All");
-  const [newGroup, setNewGroup] = useState({ subject: "", className: "", board: "CBSE" });
+  const [showForm, setShowForm] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [newGroup, setNewGroup] = useState({
+    subject: "",
+    className: "",
+    board: "CBSE",
+    students: "",
+    iconName: "BookOpen",
+    colorIndex: 0,
+  });
 
-  const filtered = demoGroups.filter((g) => {
+  useEffect(() => {
+    fetchGroups()
+      .then(({ groups }) => setGroups(groups))
+      .catch(() => {/* show empty state */})
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function handleCreate() {
+    if (!newGroup.subject || !newGroup.className) return;
+    setSubmitting(true);
+    try {
+      const { color, bg } = colorOptions[newGroup.colorIndex];
+      const { group } = await createGroup({
+        subject: newGroup.subject,
+        className: newGroup.className,
+        board: newGroup.board,
+        students: parseInt(newGroup.students) || 0,
+        iconName: newGroup.iconName,
+        color,
+        bg,
+      });
+      setGroups((prev) => [...prev, group]);
+      setShowForm(false);
+      setNewGroup({ subject: "", className: "", board: "CBSE", students: "", iconName: "BookOpen", colorIndex: 0 });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    await deleteGroup(id);
+    setGroups((prev) => prev.filter((g) => g.id !== id));
+  }
+
+  const filtered = groups.filter((g) => {
     const matchSearch = g.subject.toLowerCase().includes(search.toLowerCase()) || g.className.toLowerCase().includes(search.toLowerCase());
     const matchBoard = boardFilter === "All" || g.board === boardFilter;
     return matchSearch && matchBoard;
   });
 
-  const totalStudents = demoGroups.reduce((s, g) => s + g.students, 0);
-  const totalPapers = demoGroups.reduce((s, g) => s + g.assignments, 0);
+  const totalStudents = groups.reduce((s, g) => s + g.students, 0);
+  const totalPapers = groups.reduce((s, g) => s + g.assignments, 0);
 
   return (
     <>
@@ -115,7 +171,7 @@ export default function GroupsPage() {
           <div>
             <h1 className="text-[20px] font-extrabold sm:text-[22px]">My Groups</h1>
             <p className="mt-0.5 text-xs text-white/60 sm:text-sm">
-              {demoGroups.length} groups · {totalStudents} students total
+              {groups.length} groups · {totalStudents} students total
             </p>
           </div>
           <Button onClick={() => setShowForm(true)} className="w-fit rounded-full bg-white px-4 text-sm text-[#2a2a2a] hover:bg-white/90 sm:px-5">
@@ -128,17 +184,18 @@ export default function GroupsPage() {
       {showForm && (
         <Card className="rounded-[28px] p-4 sm:p-5">
           <h2 className="mb-3 text-sm font-bold text-[#2d2d2d] sm:mb-4 sm:text-base">Create New Group</h2>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {[
               { key: "subject", label: "Subject", placeholder: "e.g. Physics" },
               { key: "className", label: "Class", placeholder: "e.g. Grade 10" },
+              { key: "students", label: "Students", placeholder: "e.g. 30" },
             ].map((f) => (
               <div key={f.key}>
                 <label className="mb-1 block text-xs font-semibold text-[#888]">{f.label}</label>
                 <input
                   type="text"
                   placeholder={f.placeholder}
-                  value={newGroup[f.key as keyof typeof newGroup]}
+                  value={newGroup[f.key as keyof typeof newGroup] as string}
                   onChange={(e) => setNewGroup({ ...newGroup, [f.key]: e.target.value })}
                   className="w-full rounded-2xl border border-[#e8e8e8] bg-[#f8f8f7] px-3 py-2.5 text-sm outline-none focus:border-[#ff6f2c]"
                 />
@@ -155,8 +212,45 @@ export default function GroupsPage() {
               </select>
             </div>
           </div>
+
+          {/* Icon + Color pickers */}
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="mb-2 block text-xs font-semibold text-[#888]">Icon</label>
+              <div className="flex gap-2">
+                {iconOptions.map((opt) => {
+                  const Ic = iconMap[opt.name];
+                  return (
+                    <button
+                      key={opt.name}
+                      onClick={() => setNewGroup({ ...newGroup, iconName: opt.name })}
+                      className={cn("flex size-9 items-center justify-center rounded-xl border-2 transition-colors", newGroup.iconName === opt.name ? "border-[#ff6f2c] bg-[#fff3ee]" : "border-transparent bg-[#f3f3f3]")}
+                    >
+                      <Ic className="size-4 text-[#2d2d2d]" />
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div>
+              <label className="mb-2 block text-xs font-semibold text-[#888]">Color</label>
+              <div className="flex gap-2">
+                {colorOptions.map((opt, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setNewGroup({ ...newGroup, colorIndex: i })}
+                    className={cn("size-7 rounded-full border-2 transition-all", newGroup.colorIndex === i ? "scale-110 border-[#2d2d2d]" : "border-transparent")}
+                    style={{ background: opt.color }}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+
           <div className="mt-4 flex gap-3">
-            <Button className="rounded-full bg-[#2a2a2a] px-5 text-sm">Create Group</Button>
+            <Button onClick={handleCreate} disabled={submitting} className="rounded-full bg-[#2a2a2a] px-5 text-sm">
+              {submitting ? <Loader2 className="size-4 animate-spin" /> : "Create Group"}
+            </Button>
             <Button variant="ghost" onClick={() => setShowForm(false)} className="rounded-full text-sm">Cancel</Button>
           </div>
         </Card>
@@ -165,7 +259,7 @@ export default function GroupsPage() {
       {/* Summary stats */}
       <div className="grid grid-cols-3 gap-2 sm:gap-3">
         {[
-          { label: "Groups", value: demoGroups.length, icon: GraduationCap, color: "#ff6f2c" },
+          { label: "Groups", value: groups.length, icon: GraduationCap, color: "#ff6f2c" },
           { label: "Students", value: totalStudents, icon: Users, color: "#6366f1" },
           { label: "Papers", value: totalPapers, icon: ClipboardList, color: "#10b981" },
         ].map((s) => (
@@ -205,9 +299,13 @@ export default function GroupsPage() {
       </div>
 
       {/* Grid */}
-      {filtered.length > 0 ? (
+      {loading ? (
+        <div className="flex min-h-48 items-center justify-center">
+          <Loader2 className="size-8 animate-spin text-[#ddd]" />
+        </div>
+      ) : filtered.length > 0 ? (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {filtered.map((g) => <GroupCard key={g.id} group={g} />)}
+          {filtered.map((g) => <GroupCard key={g.id} group={g} onDelete={handleDelete} />)}
         </div>
       ) : (
         <Card className="flex min-h-48 flex-col items-center justify-center rounded-[28px] text-center">

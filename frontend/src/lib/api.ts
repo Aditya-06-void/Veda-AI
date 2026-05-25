@@ -1,4 +1,4 @@
-import { Assignment, AssignmentFormValues } from "./types";
+import { AppStats, Assignment, AssignmentFormValues, Group, LibraryDoc } from "./types";
 
 export const API_BASE =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "http://localhost:4000";
@@ -83,4 +83,38 @@ export async function deleteAssignment(assignmentId: string) {
   return request<{ success: boolean }>(`/api/v1/assignments/${assignmentId}`, {
     method: "DELETE",
   });
+}
+
+export async function fetchStats() {
+  return request<AppStats>("/api/v1/stats");
+}
+
+export async function fetchGroups() {
+  return request<{ groups: Group[] }>("/api/v1/groups");
+}
+
+export async function createGroup(data: { subject: string; className: string; board: string; students?: number; iconName?: string; color?: string; bg?: string }) {
+  return request<{ group: Group }>("/api/v1/groups", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteGroup(groupId: string) {
+  return request<{ success: boolean }>(`/api/v1/groups/${groupId}`, { method: "DELETE" });
+}
+
+export async function fetchLibraryDocs() {
+  return request<{ docs: LibraryDoc[] }>("/api/v1/library");
+}
+
+export async function createLibraryDoc(data: { title: string; type: LibraryDoc["type"]; subject: string; className: string; date?: string; pages?: number; starred?: boolean }) {
+  return request<{ doc: LibraryDoc }>("/api/v1/library", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteLibraryDoc(docId: string) {
+  return request<{ success: boolean }>(`/api/v1/library/${docId}`, { method: "DELETE" });
 }

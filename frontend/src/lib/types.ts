@@ -70,3 +70,35 @@ export type AssignmentFormValues = {
   questionTypes: QuestionTypeItem[];
   file?: File | null;
 };
+
+export type Group = {
+  id: string;
+  subject: string;
+  className: string;
+  students: number;
+  assignments: number;
+  color: string;
+  bg: string;
+  board: string;
+  iconName: string;
+  createdAt: string;
+};
+
+export type LibraryDoc = {
+  id: string;
+  title: string;
+  type: "paper" | "quiz" | "lesson" | "guide" | "rubric";
+  subject: string;
+  className: string;
+  date: string;
+  pages: number;
+  starred: boolean;
+  createdAt: string;
+};
+
+export type AppStats = {
+  assignments: number;
+  groups: number;
+  students: number;
+  aiGenerated: number;
+};

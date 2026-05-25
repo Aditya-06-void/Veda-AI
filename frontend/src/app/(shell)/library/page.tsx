@@ -6,45 +6,24 @@ import {
   Download,
   FileText,
   GraduationCap,
+  Loader2,
   MoreHorizontal,
   Search,
   Star,
   Upload,
   Zap,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { MobileHeader } from "@/components/layout/mobile-header";
 import { Topbar } from "@/components/layout/topbar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { deleteLibraryDoc, fetchLibraryDocs } from "@/lib/api";
+import { LibraryDoc } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-type DocType = "paper" | "quiz" | "lesson" | "guide" | "rubric";
-
-type LibraryDoc = {
-  id: string;
-  title: string;
-  type: DocType;
-  subject: string;
-  className: string;
-  date: string;
-  pages: number;
-  starred: boolean;
-};
-
-const docs: LibraryDoc[] = [
-  { id: "d1", title: "Science Question Paper", type: "paper", subject: "Science", className: "Grade 8", date: "2025-06-20", pages: 4, starred: true },
-  { id: "d2", title: "Mathematics Quiz", type: "quiz", subject: "Mathematics", className: "Grade 10", date: "2025-06-19", pages: 2, starred: false },
-  { id: "d3", title: "Physics Lesson Plan", type: "lesson", subject: "Physics", className: "Grade 11", date: "2025-06-18", pages: 3, starred: true },
-  { id: "d4", title: "Chemistry Study Guide", type: "guide", subject: "Chemistry", className: "Grade 9", date: "2025-06-17", pages: 6, starred: false },
-  { id: "d5", title: "English Assessment Rubric", type: "rubric", subject: "English", className: "Grade 7", date: "2025-06-16", pages: 2, starred: false },
-  { id: "d6", title: "History Question Paper", type: "paper", subject: "History", className: "Grade 8", date: "2025-06-15", pages: 3, starred: true },
-  { id: "d7", title: "Biology Quiz", type: "quiz", subject: "Biology", className: "Grade 10", date: "2025-06-14", pages: 2, starred: false },
-  { id: "d8", title: "Math Lesson Plan", type: "lesson", subject: "Mathematics", className: "Grade 9", date: "2025-06-13", pages: 4, starred: false },
-];
-
-const typeConfig: Record<DocType, { label: string; color: string; bg: string; icon: React.ElementType }> = {
+const typeConfig: Record<LibraryDoc["type"], { label: string; color: string; bg: string; icon: React.ElementType }> = {
   paper: { label: "Q. Paper", color: "#ff6f2c", bg: "#fff3ee", icon: ClipboardList },
   quiz: { label: "Quiz", color: "#6366f1", bg: "#eef2ff", icon: Zap },
   lesson: { label: "Lesson Plan", color: "#0ea5e9", bg: "#f0f9ff", icon: BookOpen },
@@ -60,7 +39,7 @@ const tabs = [
   { key: "guide", label: "Study Guides" },
 ];
 
-function DocCard({ doc }: { doc: LibraryDoc }) {
+function DocCard({ doc, onDelete }: { doc: LibraryDoc; onDelete: (id: string) => void }) {
   const cfg = typeConfig[doc.type];
   return (
     <Card className="group rounded-3xl p-3 transition-all hover:shadow-md sm:p-4">
@@ -72,7 +51,10 @@ function DocCard({ doc }: { doc: LibraryDoc }) {
           <button className="flex size-7 items-center justify-center rounded-full hover:bg-[#f3f3f3]">
             <Download className="size-3.5 text-[#888]" />
           </button>
-          <button className="flex size-7 items-center justify-center rounded-full hover:bg-[#f3f3f3]">
+          <button
+            onClick={() => onDelete(doc.id)}
+            className="flex size-7 items-center justify-center rounded-full hover:bg-[#f3f3f3]"
+          >
             <MoreHorizontal className="size-3.5 text-[#888]" />
           </button>
         </div>
@@ -87,10 +69,7 @@ function DocCard({ doc }: { doc: LibraryDoc }) {
       </div>
 
       <div className="mt-2 flex items-center justify-between sm:mt-3">
-        <span
-          className="rounded-full px-2 py-0.5 text-[9px] font-bold sm:text-[10px]"
-          style={{ background: cfg.bg, color: cfg.color }}
-        >
+        <span className="rounded-full px-2 py-0.5 text-[9px] font-bold sm:text-[10px]" style={{ background: cfg.bg, color: cfg.color }}>
           {cfg.label}
         </span>
         <div className="flex items-center gap-1.5 text-[10px] text-[#aaa] sm:text-xs">
@@ -104,8 +83,22 @@ function DocCard({ doc }: { doc: LibraryDoc }) {
 }
 
 export default function LibraryPage() {
+  const [docs, setDocs] = useState<LibraryDoc[]>([]);
+  const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("all");
   const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    fetchLibraryDocs()
+      .then(({ docs }) => setDocs(docs))
+      .catch(() => {/* show empty state */})
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function handleDelete(id: string) {
+    await deleteLibraryDoc(id);
+    setDocs((prev) => prev.filter((d) => d.id !== id));
+  }
 
   const filtered = docs.filter((d) => {
     const matchTab = tab === "all" || d.type === tab;
@@ -140,7 +133,7 @@ export default function LibraryPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-5 sm:gap-3">
-        {Object.entries(typeConfig).map(([key, cfg]) => {
+        {(Object.entries(typeConfig) as [LibraryDoc["type"], typeof typeConfig[LibraryDoc["type"]]][]).map(([key, cfg]) => {
           const count = docs.filter((d) => d.type === key).length;
           return (
             <Card
@@ -152,10 +145,7 @@ export default function LibraryPage() {
               )}
               style={tab === key ? { background: cfg.bg, outline: `2px solid ${cfg.color}`, outlineOffset: "0px" } : {}}
             >
-              <div
-                className="flex size-8 items-center justify-center rounded-xl sm:size-9"
-                style={{ background: tab === key ? "white" : cfg.bg }}
-              >
+              <div className="flex size-8 items-center justify-center rounded-xl sm:size-9" style={{ background: tab === key ? "white" : cfg.bg }}>
                 <cfg.icon className="size-3.5 sm:size-4" style={{ color: cfg.color }} />
               </div>
               <div className="mt-2 text-xl font-extrabold text-[#2d2d2d] sm:text-[22px]">{count}</div>
@@ -166,14 +156,14 @@ export default function LibraryPage() {
       </div>
 
       {/* Starred row */}
-      {starred.length > 0 && tab === "all" && !search && (
+      {!loading && starred.length > 0 && tab === "all" && !search && (
         <div>
           <div className="mb-2 flex items-center gap-2 px-1 sm:mb-3">
             <Star className="size-3.5 fill-[#f59e0b] text-[#f59e0b] sm:size-4" />
             <h2 className="text-sm font-bold text-[#2d2d2d] sm:text-[15px]">Starred</h2>
           </div>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3 lg:grid-cols-3">
-            {starred.map((d) => <DocCard key={d.id} doc={d} />)}
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-2 sm:gap-3 lg:grid-cols-3">
+            {starred.map((d) => <DocCard key={d.id} doc={d} onDelete={handleDelete} />)}
           </div>
         </div>
       )}
@@ -207,9 +197,13 @@ export default function LibraryPage() {
       </div>
 
       {/* Document grid */}
-      {filtered.length > 0 ? (
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-2 sm:gap-3 lg:grid-cols-3 xl:grid-cols-4">
-          {filtered.map((d) => <DocCard key={d.id} doc={d} />)}
+      {loading ? (
+        <div className="flex min-h-48 items-center justify-center">
+          <Loader2 className="size-8 animate-spin text-[#ddd]" />
+        </div>
+      ) : filtered.length > 0 ? (
+        <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3 xl:grid-cols-4">
+          {filtered.map((d) => <DocCard key={d.id} doc={d} onDelete={handleDelete} />)}
         </div>
       ) : (
         <Card className="flex min-h-48 flex-col items-center justify-center rounded-[28px] text-center">

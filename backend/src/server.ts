@@ -12,29 +12,45 @@ import { Server as SocketServer } from "socket.io";
 
 import { cacheAssignments, clearAssignmentCache, connectRedis, readCachedAssignments } from "./cache";
 import { config } from "./config";
-import { connectMongo, deleteAssignment, getAssignment, listAssignments, listAssignmentsPaginated, saveAssignment } from "./repository";
+import {
+  connectMongo,
+  deleteAssignment,
+  deleteGroup,
+  deleteLibraryDoc,
+  getAppStats,
+  getAssignment,
+  listAssignments,
+  listAssignmentsPaginated,
+  listGroups,
+  listLibraryDocs,
+  saveAssignment,
+  saveGroup,
+  saveLibraryDoc,
+  seedGroupsIfEmpty,
+  seedLibraryDocsIfEmpty,
+} from "./repository";
 import { enqueueGeneration, initializeQueue } from "./queue";
 import { streamToolkitResponse, type ToolInput } from "./toolkit";
-import { CreateAssignmentInput, type Assignment } from "./types";
+import { CreateAssignmentInput, Group, LibraryDoc, type Assignment } from "./types";
 import { createAssignmentSchema } from "./validation";
 
-// ── App setup ───────────────────────────────────────────────────────────────
+// ── App setup ────────────────────────────────────────────────────────────────
 const app = express();
 const server = http.createServer(app);
 const io = new SocketServer(server, { cors: { origin: "*" } });
 
-// ── Security headers ────────────────────────────────────────────────────────
+// ── Security headers ─────────────────────────────────────────────────────────
 app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
 
-// ── CORS ────────────────────────────────────────────────────────────────────
+// ── CORS ─────────────────────────────────────────────────────────────────────
 app.use(cors({ origin: "*", methods: ["GET", "POST", "DELETE", "OPTIONS"], allowedHeaders: ["Content-Type", "Authorization"] }));
 
-// ── Body parsers ─────────────────────────────────────────────────────────────
+// ── Body parsers ──────────────────────────────────────────────────────────────
 app.use(express.json({ limit: "2mb" }));
 
-// ── Rate limiters ────────────────────────────────────────────────────────────
+// ── Rate limiters ─────────────────────────────────────────────────────────────
 const generalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 min
+  windowMs: 15 * 60 * 1000,
   max: 200,
   standardHeaders: true,
   legacyHeaders: false,
@@ -42,7 +58,7 @@ const generalLimiter = rateLimit({
 });
 
 const aiLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 min
+  windowMs: 60 * 1000,
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
@@ -55,7 +71,7 @@ const uploadLimiter = rateLimit({
   message: { message: "Upload rate limit exceeded." },
 });
 
-// ── File upload (memory storage, 10MB max) ───────────────────────────────────
+// ── File upload (memory, 10 MB max) ──────────────────────────────────────────
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
@@ -66,7 +82,15 @@ const upload = multer({
   },
 });
 
-// ── Shared helpers ───────────────────────────────────────────────────────────
+// ── Rewrite legacy /api/* → /api/v1/* so we only need one router mount ───────
+app.use((req, _res, next) => {
+  if (req.url.startsWith("/api/") && !req.url.startsWith("/api/v1/")) {
+    req.url = `/api/v1/${req.url.slice(5)}`;
+  }
+  next();
+});
+
+// ── Shared helpers ────────────────────────────────────────────────────────────
 function totalize(questionTypes: Assignment["questionTypes"]) {
   return questionTypes.reduce(
     (acc, item) => {
@@ -104,48 +128,42 @@ async function publishAssignmentUpdate(assignment: Assignment) {
   io.emit("assignment:update", { assignment });
 }
 
-// ── Main API router ──────────────────────────────────────────────────────────
+// ── Main API router (mounted at /api/v1) ─────────────────────────────────────
 const router = express.Router();
 
 // Health
 router.get("/health", (_req, res) => { res.json({ ok: true, version: "v1" }); });
 
-// ─────────────── Assignments ─────────────────────────────────────────────────
+// ─── Stats ───────────────────────────────────────────────────────────────────
+router.get("/stats", async (_req, res) => {
+  const stats = await getAppStats();
+  res.json(stats);
+});
 
-// GET /assignments  (supports ?page=&limit= on v1)
+// ─── Assignments ─────────────────────────────────────────────────────────────
+
 router.get("/assignments", async (request, response) => {
-  const page = Math.max(1, parseInt(request.query.page as string) || 0);
+  const page = parseInt(request.query.page as string) || 0;
   const limitParam = parseInt(request.query.limit as string) || 0;
 
-  // No pagination params → return all (cached, backward compat)
   if (!page && !limitParam) {
     const cached = await readCachedAssignments();
-    if (cached) {
-      response.json({ assignments: cached });
-      return;
-    }
+    if (cached) { response.json({ assignments: cached }); return; }
     const assignments = await listAssignments();
     await cacheAssignments(assignments);
     response.json({ assignments });
     return;
   }
 
-  // Paginated
   const limit = Math.min(50, Math.max(1, limitParam || 20));
   const actualPage = Math.max(1, page || 1);
   const { assignments, total } = await listAssignmentsPaginated(actualPage, limit);
   response.json({
     assignments,
-    pagination: {
-      page: actualPage,
-      limit,
-      total,
-      pages: Math.ceil(total / limit),
-    },
+    pagination: { page: actualPage, limit, total, pages: Math.ceil(total / limit) },
   });
 });
 
-// POST /assignments
 router.post("/assignments", async (request, response) => {
   const parsed = createAssignmentSchema.safeParse(request.body);
   if (!parsed.success) {
@@ -158,49 +176,32 @@ router.post("/assignments", async (request, response) => {
   response.status(201).json({ assignment });
 });
 
-// GET /assignments/:id
 router.get("/assignments/:assignmentId", async (request, response) => {
   const assignment = await getAssignment(request.params.assignmentId);
-  if (!assignment) {
-    response.status(404).json({ message: "Assignment not found." });
-    return;
-  }
+  if (!assignment) { response.status(404).json({ message: "Assignment not found." }); return; }
   response.json({ assignment });
 });
 
-// DELETE /assignments/:id
 router.delete("/assignments/:assignmentId", async (request, response) => {
   const assignment = await getAssignment(request.params.assignmentId);
-  if (!assignment) {
-    response.status(404).json({ message: "Assignment not found." });
-    return;
-  }
+  if (!assignment) { response.status(404).json({ message: "Assignment not found." }); return; }
   await deleteAssignment(request.params.assignmentId);
   await clearAssignmentCache();
   io.emit("assignment:deleted", { assignmentId: request.params.assignmentId });
   response.json({ success: true });
 });
 
-// POST /assignments/:id/upload  — file → extract text → store
 router.post(
   "/assignments/:assignmentId/upload",
   uploadLimiter,
   upload.single("file"),
   async (request, response) => {
-    const assignmentId = Array.isArray(request.params.assignmentId)
-      ? request.params.assignmentId[0]
-      : request.params.assignmentId;
+    const assignmentId = Array.isArray(request.params.assignmentId) ? request.params.assignmentId[0] : request.params.assignmentId;
     const assignment = await getAssignment(assignmentId);
-    if (!assignment) {
-      response.status(404).json({ message: "Assignment not found." });
-      return;
-    }
+    if (!assignment) { response.status(404).json({ message: "Assignment not found." }); return; }
 
     const file = request.file;
-    if (!file) {
-      response.status(400).json({ message: "No file received." });
-      return;
-    }
+    if (!file) { response.status(400).json({ message: "No file received." }); return; }
 
     let extractedText = "";
     try {
@@ -208,7 +209,6 @@ router.post(
         const result = await pdfParse(file.buffer);
         extractedText = result.text.trim();
       } else {
-        // Plain text / CSV
         extractedText = file.buffer.toString("utf-8").trim();
       }
     } catch {
@@ -216,47 +216,99 @@ router.post(
       return;
     }
 
-    const updated: Assignment = {
-      ...assignment,
-      fileName: file.originalname,
-      extractedText: extractedText.slice(0, 12000), // cap at 12k chars
-    };
+    const updated: Assignment = { ...assignment, fileName: file.originalname, extractedText: extractedText.slice(0, 12000) };
     await saveAssignment(updated);
     await publishAssignmentUpdate(updated);
     response.json({ assignment: updated, extractedChars: extractedText.length });
   },
 );
 
-// POST /assignments/:id/generate
 router.post("/assignments/:assignmentId/generate", async (request, response) => {
   const assignment = await enqueueGeneration(request.params.assignmentId);
-  if (!assignment) {
-    response.status(404).json({ message: "Assignment not found." });
-    return;
-  }
+  if (!assignment) { response.status(404).json({ message: "Assignment not found." }); return; }
   await publishAssignmentUpdate(assignment);
   response.json({ assignment });
 });
 
-// POST /assignments/:id/regenerate
 router.post("/assignments/:assignmentId/regenerate", async (request, response) => {
   const existing = await getAssignment(request.params.assignmentId);
-  if (!existing) {
-    response.status(404).json({ message: "Assignment not found." });
-    return;
-  }
+  if (!existing) { response.status(404).json({ message: "Assignment not found." }); return; }
   const reset: Assignment = { ...existing, status: "draft", generatedPaper: undefined };
   await saveAssignment(reset);
   const queued = await enqueueGeneration(reset.id);
-  if (!queued) {
-    response.status(500).json({ message: "Failed to queue regeneration." });
-    return;
-  }
+  if (!queued) { response.status(500).json({ message: "Failed to queue regeneration." }); return; }
   await publishAssignmentUpdate(queued);
   response.json({ assignment: queued });
 });
 
-// ─────────────── Toolkit (streaming NVIDIA LLM) ───────────────────────────────
+// ─── Groups ──────────────────────────────────────────────────────────────────
+
+router.get("/groups", async (_req, res) => {
+  const groups = await listGroups();
+  res.json({ groups });
+});
+
+router.post("/groups", async (request, response) => {
+  const { subject, className, board, students, iconName, color, bg } = request.body as Partial<Group>;
+  if (!subject || !className || !board) {
+    response.status(400).json({ message: "subject, className, and board are required." });
+    return;
+  }
+  const group: Group = {
+    id: crypto.randomUUID(),
+    subject,
+    className,
+    board,
+    students: students ?? 0,
+    assignments: 0,
+    color: color ?? "#6366f1",
+    bg: bg ?? "#eef2ff",
+    iconName: iconName ?? "BookOpen",
+    createdAt: new Date().toISOString(),
+  };
+  await saveGroup(group);
+  response.status(201).json({ group });
+});
+
+router.delete("/groups/:groupId", async (request, response) => {
+  await deleteGroup(request.params.groupId);
+  response.json({ success: true });
+});
+
+// ─── Library ─────────────────────────────────────────────────────────────────
+
+router.get("/library", async (_req, res) => {
+  const docs = await listLibraryDocs();
+  res.json({ docs });
+});
+
+router.post("/library", async (request, response) => {
+  const { title, type, subject, className, date, pages, starred } = request.body as Partial<LibraryDoc>;
+  if (!title || !type || !subject || !className) {
+    response.status(400).json({ message: "title, type, subject, and className are required." });
+    return;
+  }
+  const doc: LibraryDoc = {
+    id: crypto.randomUUID(),
+    title,
+    type,
+    subject,
+    className,
+    date: date ?? new Date().toISOString().slice(0, 10),
+    pages: pages ?? 1,
+    starred: starred ?? false,
+    createdAt: new Date().toISOString(),
+  };
+  await saveLibraryDoc(doc);
+  response.status(201).json({ doc });
+});
+
+router.delete("/library/:docId", async (request, response) => {
+  await deleteLibraryDoc(request.params.docId);
+  response.json({ success: true });
+});
+
+// ─── Toolkit (streaming NVIDIA LLM) ──────────────────────────────────────────
 router.post("/toolkit/generate", aiLimiter, async (request, response) => {
   if (!config.nvidiaApiKey) {
     response.status(500).json({ message: "NVIDIA_API_KEY not configured on server." });
@@ -287,8 +339,7 @@ router.post("/toolkit/generate", aiLimiter, async (request, response) => {
   }
 });
 
-// ── Mount router at /api  AND  /api/v1 ──────────────────────────────────────
-app.use("/api", generalLimiter, router);
+// ── Single mount at /api/v1 ───────────────────────────────────────────────────
 app.use("/api/v1", generalLimiter, router);
 
 // ── WebSocket ────────────────────────────────────────────────────────────────
@@ -302,9 +353,13 @@ async function start() {
   await connectRedis();
   await initializeQueue({ onAssignmentUpdate: publishAssignmentUpdate });
 
+  // Seed demo data if collections are empty
+  await seedGroupsIfEmpty();
+  await seedLibraryDocsIfEmpty();
+
   server.listen(config.port, () => {
     console.log(`Backend listening on http://localhost:${config.port}`);
-    console.log(`API available at /api and /api/v1`);
+    console.log(`API available at /api/v1 (legacy /api/* auto-rewritten)`);
   });
 }
 

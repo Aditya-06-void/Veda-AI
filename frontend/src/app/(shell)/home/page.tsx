@@ -7,31 +7,26 @@ import {
   ClipboardList,
   Flame,
   Library,
-  Plus,
   Sparkles,
   TrendingUp,
   Users,
 } from "lucide-react";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { MobileHeader } from "@/components/layout/mobile-header";
 import { Topbar } from "@/components/layout/topbar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { demoAssignments, schoolProfile } from "@/lib/constants";
+import { fetchAssignments, fetchStats } from "@/lib/api";
+import { schoolProfile } from "@/lib/constants";
+import { AppStats, Assignment } from "@/lib/types";
 import { formatDate } from "@/lib/utils";
 import { useAssignmentStore } from "@/store/use-assignment-store";
 
-const stats = [
-  { label: "Assignments", value: "24", icon: ClipboardList, color: "#ff6f2c", bg: "#fff3ee" },
-  { label: "Active Groups", value: "6", icon: Users, color: "#6366f1", bg: "#eef2ff" },
-  { label: "Students", value: "188", icon: BookOpen, color: "#0ea5e9", bg: "#f0f9ff" },
-  { label: "AI Generated", value: "18", icon: Sparkles, color: "#10b981", bg: "#ecfdf5" },
-];
-
 const quickActions = [
-  { label: "Create Assignment", description: "AI-powered question papers", icon: Plus, href: "/assignments", color: "#ff6f2c", bg: "#fff3ee", create: true },
+  { label: "Create Assignment", description: "AI-powered question papers", icon: ClipboardList, href: "/assignments", color: "#ff6f2c", bg: "#fff3ee", create: true },
   { label: "My Groups", description: "Manage class groups", icon: Users, href: "/groups", color: "#6366f1", bg: "#eef2ff" },
   { label: "AI Toolkit", description: "Lesson plans, quizzes & more", icon: Bot, href: "/toolkit", color: "#0ea5e9", bg: "#f0f9ff" },
   { label: "My Library", description: "Browse saved resources", icon: Library, href: "/library", color: "#10b981", bg: "#ecfdf5" },
@@ -47,12 +42,28 @@ const recentActivity = [
 export default function HomePage() {
   const router = useRouter();
   const { setView, setNav } = useAssignmentStore();
+  const [stats, setStats] = useState<AppStats | null>(null);
+  const [recentAssignments, setRecentAssignments] = useState<Assignment[]>([]);
+
+  useEffect(() => {
+    fetchStats().then(setStats).catch(() => {});
+    fetchAssignments(1, 3)
+      .then(({ assignments }) => setRecentAssignments(assignments))
+      .catch(() => {});
+  }, []);
 
   function handleCreate() {
     setView("create");
     setNav("assignments");
     router.push("/assignments");
   }
+
+  const statsCards = [
+    { label: "Assignments", value: stats?.assignments ?? "—", icon: ClipboardList, color: "#ff6f2c", bg: "#fff3ee" },
+    { label: "Active Groups", value: stats?.groups ?? "—", icon: Users, color: "#6366f1", bg: "#eef2ff" },
+    { label: "Students", value: stats?.students ?? "—", icon: BookOpen, color: "#0ea5e9", bg: "#f0f9ff" },
+    { label: "AI Generated", value: stats?.aiGenerated ?? "—", icon: Sparkles, color: "#10b981", bg: "#ecfdf5" },
+  ];
 
   return (
     <>
@@ -83,7 +94,7 @@ export default function HomePage() {
 
       {/* Stats row */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {stats.map((s) => (
+        {statsCards.map((s) => (
           <Card key={s.label} className="rounded-[24px] p-3 sm:p-4">
             <div className="flex size-9 items-center justify-center rounded-xl sm:size-10 sm:rounded-2xl" style={{ background: s.bg }}>
               <s.icon className="size-4 sm:size-5" style={{ color: s.color }} />
@@ -145,18 +156,26 @@ export default function HomePage() {
             </Link>
           </div>
           <div className="space-y-2 sm:space-y-3">
-            {demoAssignments.slice(0, 3).map((a, i) => (
-              <div key={i} className="flex items-center gap-3 rounded-xl bg-[#f8f8f7] px-3 py-2.5 sm:rounded-2xl sm:px-4 sm:py-3">
-                <div className="flex size-8 flex-none items-center justify-center rounded-lg bg-[#fff3ee] sm:size-9 sm:rounded-xl">
-                  <ClipboardList className="size-3.5 text-[#ff6f2c] sm:size-4" />
+            {recentAssignments.length > 0 ? (
+              recentAssignments.map((a) => (
+                <div key={a.id} className="flex items-center gap-3 rounded-xl bg-[#f8f8f7] px-3 py-2.5 sm:rounded-2xl sm:px-4 sm:py-3">
+                  <div className="flex size-8 flex-none items-center justify-center rounded-lg bg-[#fff3ee] sm:size-9 sm:rounded-xl">
+                    <ClipboardList className="size-3.5 text-[#ff6f2c] sm:size-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-xs font-semibold text-[#2d2d2d] sm:text-sm">{a.title}</div>
+                    <div className="text-[10px] text-[#888] sm:text-xs">Due {formatDate(a.dueDate)}</div>
+                  </div>
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${a.status === "completed" ? "bg-[#ecfdf5] text-[#10b981]" : "bg-[#f3f3f3] text-[#888]"}`}>
+                    {a.status === "completed" ? "Done" : a.status}
+                  </span>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-xs font-semibold text-[#2d2d2d] sm:text-sm">{a.title}</div>
-                  <div className="text-[10px] text-[#888] sm:text-xs">Due {formatDate(a.dueDate)}</div>
-                </div>
-                <span className="rounded-full bg-[#ecfdf5] px-2 py-0.5 text-[10px] font-semibold text-[#10b981]">Done</span>
+              ))
+            ) : (
+              <div className="flex min-h-20 items-center justify-center text-sm text-[#aaa]">
+                No assignments yet
               </div>
-            ))}
+            )}
           </div>
         </Card>
 
@@ -191,7 +210,7 @@ export default function HomePage() {
           <div className="flex-1">
             <div className="text-sm font-bold text-[#2d2d2d] sm:text-base">AI Tip of the Day</div>
             <p className="mt-1 text-xs text-[#666] sm:text-sm">
-              Try the <strong>AI Teacher's Toolkit</strong> to auto-generate lesson plans and personalised student
+              Try the <strong>AI Teacher&apos;s Toolkit</strong> to auto-generate lesson plans and personalised student
               feedback — save up to 3 hours of prep per week.
             </p>
           </div>
