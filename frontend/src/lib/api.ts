@@ -49,3 +49,9 @@ export async function regenerateAssignment(assignmentId: string) {
     },
   );
 }
+
+export async function deleteAssignment(assignmentId: string) {
+  return request<{ success: boolean }>(`/api/assignments/${assignmentId}`, {
+    method: "DELETE",
+  });
+}

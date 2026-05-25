@@ -19,15 +19,19 @@ import { cn } from "@/lib/utils";
 const navItems = [
   { label: "Home", icon: Grid2X2 },
   { label: "My Groups", icon: Users },
-  { label: "Assignments", icon: ClipboardList, active: true, count: 32 },
-  { label: "AI Teacher’s Toolkit", icon: Bot },
+  { label: "Assignments", icon: ClipboardList, key: "assignments" as const },
+  { label: "AI Teacher’s Toolkit", icon: Bot, key: "toolkit" as const },
   { label: "My Library", icon: Library },
 ];
 
 export function Sidebar({
   onCreate,
+  active,
+  assignmentCount,
 }: {
   onCreate: () => void;
+  active: "assignments" | "toolkit";
+  assignmentCount: number;
 }) {
   return (
     <Card className="hidden h-[calc(100vh-24px)] w-[304px] flex-col justify-between rounded-[26px] px-5 py-5 lg:flex">
@@ -53,16 +57,16 @@ export function Sidebar({
               key={item.label}
               className={cn(
                 "flex items-center justify-between rounded-2xl px-4 py-3 text-[15px] text-[#7b7b7b]",
-                item.active && "bg-[#f3f3f3] font-semibold text-[#2d2d2d]",
+                item.key === active && "bg-[#f3f3f3] font-semibold text-[#2d2d2d]",
               )}
             >
               <div className="flex items-center gap-3">
                 <item.icon className="size-4.5" />
                 <span>{item.label}</span>
               </div>
-              {item.count ? (
+              {item.key === "assignments" && assignmentCount > 0 ? (
                 <span className="rounded-full bg-[#ff6f2c] px-2 py-0.5 text-[11px] font-bold text-white">
-                  {item.count}
+                  {assignmentCount}
                 </span>
               ) : null}
             </div>

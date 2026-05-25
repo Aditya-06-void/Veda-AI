@@ -10,11 +10,11 @@ export function AssignmentEmptyState({
   onCreate: () => void;
 }) {
   return (
-    <div className="relative flex min-h-[640px] flex-col items-center justify-center overflow-hidden px-6 text-center">
+    <div className="relative flex min-h-[640px] flex-col items-center justify-center overflow-hidden px-4 text-center md:px-6">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(255,255,255,0.95)_0%,_rgba(241,241,241,0.6)_35%,_transparent_72%)]" />
       <div className="relative mb-8">
         <div className="absolute inset-0 scale-125 rounded-full bg-[#ececec] blur-2xl" />
-        <div className="relative flex size-52 items-center justify-center rounded-full bg-white/60">
+        <div className="relative flex size-44 items-center justify-center rounded-full bg-white/60 md:size-52">
           <div className="relative flex h-38 w-32 items-center justify-center rounded-[24px] bg-white shadow-xl">
             <div className="absolute top-5 left-4 h-2.5 w-12 rounded-full bg-[#0d2233]" />
             <div className="absolute top-14 left-4 h-2 w-14 rounded-full bg-[#d7d7d7]" />
@@ -35,10 +35,10 @@ export function AssignmentEmptyState({
         </div>
       </div>
 
-      <h2 className="relative text-[42px] font-extrabold tracking-[-0.04em] text-[#2d2d2d] max-md:text-3xl">
+      <h2 className="relative text-[36px] font-extrabold tracking-[-0.04em] text-[#2d2d2d] md:text-[42px]">
         No assignments yet
       </h2>
-      <p className="relative mt-3 max-w-2xl text-lg leading-8 text-[#7c7c7c] max-md:text-base">
+      <p className="relative mt-3 max-w-2xl text-base leading-8 text-[#7c7c7c] md:text-lg">
         Create your first assignment to start collecting and grading student
         submissions. You can set up rubrics, define marking criteria, and let AI
         assist with grading.

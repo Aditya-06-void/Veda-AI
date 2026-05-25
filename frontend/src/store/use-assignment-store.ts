@@ -4,6 +4,7 @@ import { create } from "zustand";
 
 import {
   createAssignment,
+  deleteAssignment,
   fetchAssignments,
   generateAssignment,
   regenerateAssignment,
@@ -12,20 +13,24 @@ import { socket } from "@/lib/socket";
 import { Assignment, AssignmentFormValues } from "@/lib/types";
 
 type ViewMode = "list" | "create" | "output";
+type NavMode = "assignments" | "toolkit";
 
 type AssignmentStore = {
   assignments: Assignment[];
   activeAssignmentId: string | null;
   view: ViewMode;
+  nav: NavMode;
   loading: boolean;
   submitting: boolean;
   error: string | null;
   socketConnected: boolean;
   initialize: () => Promise<void>;
   setView: (view: ViewMode) => void;
+  setNav: (nav: NavMode) => void;
   setActiveAssignment: (assignmentId: string | null) => void;
   createAndGenerateAssignment: (values: AssignmentFormValues) => Promise<void>;
   triggerRegeneration: (assignmentId: string) => Promise<void>;
+  removeAssignment: (assignmentId: string) => Promise<void>;
   hydrateAssignment: (assignment: Assignment) => void;
 };
 
@@ -41,6 +46,7 @@ export const useAssignmentStore = create<AssignmentStore>((set, get) => ({
   assignments: [],
   activeAssignmentId: null,
   view: "list",
+  nav: "assignments",
   loading: true,
   submitting: false,
   error: null,
@@ -53,6 +59,15 @@ export const useAssignmentStore = create<AssignmentStore>((set, get) => ({
       socket.on("disconnect", () => set({ socketConnected: false }));
       socket.on("assignment:update", ({ assignment }: { assignment: Assignment }) => {
         get().hydrateAssignment(assignment);
+      });
+      socket.on("assignment:deleted", ({ assignmentId }: { assignmentId: string }) => {
+        const nextAssignments = get().assignments.filter((item) => item.id !== assignmentId);
+        set({
+          assignments: nextAssignments,
+          activeAssignmentId: nextAssignments[0]?.id ?? null,
+          view: "list",
+          nav: "assignments",
+        });
       });
     }
 
@@ -76,6 +91,9 @@ export const useAssignmentStore = create<AssignmentStore>((set, get) => ({
   setView(view) {
     set({ view });
   },
+  setNav(nav) {
+    set({ nav });
+  },
   setActiveAssignment(activeAssignmentId) {
     set({ activeAssignmentId });
   },
@@ -84,7 +102,7 @@ export const useAssignmentStore = create<AssignmentStore>((set, get) => ({
       set({ submitting: true, error: null });
       const { assignment } = await createAssignment(values);
       get().hydrateAssignment(assignment);
-      set({ activeAssignmentId: assignment.id, view: "output" });
+      set({ activeAssignmentId: assignment.id, view: "output", nav: "toolkit" });
       await generateAssignment(assignment.id);
     } catch (error) {
       set({
@@ -108,6 +126,26 @@ export const useAssignmentStore = create<AssignmentStore>((set, get) => ({
       set({ submitting: false });
     }
   },
+  async removeAssignment(assignmentId) {
+    try {
+      set({ submitting: true, error: null });
+      await deleteAssignment(assignmentId);
+      const nextAssignments = get().assignments.filter((item) => item.id !== assignmentId);
+      set({
+        assignments: nextAssignments,
+        activeAssignmentId: nextAssignments[0]?.id ?? null,
+        view: "list",
+        nav: "assignments",
+      });
+    } catch (error) {
+      set({
+        error:
+          error instanceof Error ? error.message : "Failed to delete assignment.",
+      });
+    } finally {
+      set({ submitting: false });
+    }
+  },
   hydrateAssignment(assignment) {
     const existing = get().assignments.filter((item) => item.id !== assignment.id);
     const nextAssignments = sortAssignments([assignment, ...existing]);
@@ -116,6 +154,10 @@ export const useAssignmentStore = create<AssignmentStore>((set, get) => ({
     set({
       assignments: nextAssignments,
       activeAssignmentId: assignment.id,
+      nav:
+        assignment.generatedPaper || assignment.status === "generating" || assignment.status === "queued"
+          ? "toolkit"
+          : "assignments",
       view:
         assignment.generatedPaper || assignment.status === "generating" || assignment.status === "queued"
           ? "output"

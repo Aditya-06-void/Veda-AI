@@ -7,7 +7,7 @@ import { Server as SocketServer } from "socket.io";
 
 import { cacheAssignments, clearAssignmentCache, connectRedis, readCachedAssignments } from "./cache";
 import { config } from "./config";
-import { connectMongo, getAssignment, listAssignments, saveAssignment } from "./repository";
+import { connectMongo, deleteAssignment, getAssignment, listAssignments, saveAssignment } from "./repository";
 import { enqueueGeneration, initializeQueue } from "./queue";
 import { CreateAssignmentInput, type Assignment } from "./types";
 import { createAssignmentSchema } from "./validation";
@@ -97,6 +97,19 @@ app.get("/api/assignments/:assignmentId", async (request, response) => {
   }
 
   response.json({ assignment });
+});
+
+app.delete("/api/assignments/:assignmentId", async (request, response) => {
+  const assignment = await getAssignment(request.params.assignmentId);
+  if (!assignment) {
+    response.status(404).json({ message: "Assignment not found." });
+    return;
+  }
+
+  await deleteAssignment(request.params.assignmentId);
+  await clearAssignmentCache();
+  io.emit("assignment:deleted", { assignmentId: request.params.assignmentId });
+  response.json({ success: true });
 });
 
 app.post("/api/assignments/:assignmentId/generate", async (request, response) => {

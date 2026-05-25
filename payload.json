@@ -1,0 +1,12 @@
+{
+  "schoolName": "Delhi Public School",
+  "board": "CBSE",
+  "className": "Grade 8",
+  "subject": "Science",
+  "dueDate": "2026-05-30",
+  "instructions": "Generate a question paper with balanced easy, moderate and challenging questions.",
+  "questionTypes": [
+    { "id": "qt-1", "type": "Multiple Choice Questions", "count": 4, "marks": 1 },
+    { "id": "qt-2", "type": "Short Questions", "count": 3, "marks": 2 }
+  ]
+}

@@ -8,6 +8,16 @@ type AssignmentDocument = mongoose.Document &
     assignmentId: string;
   };
 
+const questionTypeSchema = new Schema(
+  {
+    id: String,
+    type: String,
+    count: Number,
+    marks: Number,
+  },
+  { _id: false },
+);
+
 const questionSchema = new Schema(
   {
     id: String,
@@ -29,6 +39,14 @@ const sectionSchema = new Schema(
   { _id: false },
 );
 
+const answerKeySchema = new Schema(
+  {
+    id: String,
+    text: String,
+  },
+  { _id: false },
+);
+
 const assignmentSchema = new Schema<AssignmentDocument>(
   {
     assignmentId: { type: String, unique: true, index: true },
@@ -39,20 +57,14 @@ const assignmentSchema = new Schema<AssignmentDocument>(
     subject: String,
     dueDate: String,
     instructions: String,
-    questionTypes: [
-      {
-        id: String,
-        type: String,
-        count: Number,
-        marks: Number,
-      },
-    ],
+    questionTypes: [questionTypeSchema],
     totalQuestions: Number,
     totalMarks: Number,
     createdAt: String,
     status: String,
     fileName: String,
     generatedPaper: {
+      type: {
       greeting: String,
       paperTitle: String,
       schoolName: String,
@@ -62,12 +74,9 @@ const assignmentSchema = new Schema<AssignmentDocument>(
       maximumMarks: Number,
       studentFields: [String],
       sections: [sectionSchema],
-      answerKey: [
-        {
-          id: String,
-          text: String,
-        },
-      ],
+      answerKey: [answerKeySchema],
+      },
+      default: undefined,
     },
   },
   { versionKey: false },
@@ -94,6 +103,12 @@ export async function connectMongo() {
 }
 
 function toAssignment(document: AssignmentDocument): Assignment {
+  const generatedPaper =
+    document.generatedPaper &&
+    (document.generatedPaper as GeneratedPaper).sections?.length
+      ? (document.generatedPaper as GeneratedPaper)
+      : undefined;
+
   return {
     id: document.assignmentId,
     title: document.title,
@@ -109,7 +124,7 @@ function toAssignment(document: AssignmentDocument): Assignment {
     createdAt: document.createdAt,
     status: document.status as AssignmentStatus,
     fileName: document.fileName,
-    generatedPaper: document.generatedPaper as GeneratedPaper | undefined,
+    generatedPaper,
   };
 }
 
@@ -147,6 +162,15 @@ export async function getAssignment(assignmentId: string) {
   }
 
   return memoryAssignments.get(assignmentId) ?? null;
+}
+
+export async function deleteAssignment(assignmentId: string) {
+  if (mongoReady) {
+    await AssignmentModel.deleteOne({ assignmentId });
+    return;
+  }
+
+  memoryAssignments.delete(assignmentId);
 }
 
 export async function updateAssignmentStatus(
