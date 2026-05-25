@@ -51,7 +51,7 @@ export function AssignmentOutput({
       </Card>
 
       <Card className="overflow-hidden rounded-[32px] bg-white">
-        <div className="px-4 py-6 md:px-8 md:py-10">
+        <div className="px-4 py-6 md:px-6 md:py-8">
           {!paper ? (
             <div className="flex min-h-[680px] flex-col items-center justify-center text-center md:min-h-[800px]">
               <div className="mb-4 size-12 animate-spin rounded-full border-4 border-black/10 border-t-black" />
@@ -64,7 +64,7 @@ export function AssignmentOutput({
               </p>
             </div>
           ) : (
-            <article id="print-paper" className="mx-auto max-w-[900px] text-[#2d2d2d]">
+            <article id="print-paper" className="text-[#2d2d2d]">
               <header className="space-y-2 text-center md:space-y-3">
                 <h1 className="text-[16px] font-extrabold leading-6 md:text-[28px]">
                   {paper.schoolName}

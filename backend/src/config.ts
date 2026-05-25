@@ -11,4 +11,5 @@ export const config = {
   redisUsername: process.env.REDIS_USERNAME ?? "",
   redisPassword: process.env.REDIS_PASSWORD ?? "",
   frontendUrl: process.env.FRONTEND_URL ?? "http://localhost:3000",
+  nvidiaApiKey: process.env.NVIDIA_API_KEY ?? "",
 };

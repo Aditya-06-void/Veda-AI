@@ -1,37 +1,18 @@
-import { GeneratedPaper, GeneratedQuestion, GeneratedSection, QuestionDifficulty } from "./types";
+import OpenAI from "openai";
 
-import type { Assignment } from "./types";
+import { config } from "./config";
+import type {
+  Assignment,
+  GeneratedPaper,
+  GeneratedQuestion,
+  GeneratedSection,
+  QuestionDifficulty,
+} from "./types";
 
-const promptHints: Record<string, string[]> = {
-  "Multiple Choice Questions": [
-    "Choose the correct answer for each concept",
-    "Pick the best explanation for the concept",
-  ],
-  "Short Questions": [
-    "Explain the concept in one or two complete sentences",
-    "Write the key scientific reason behind the process",
-  ],
-  "Long Questions": [
-    "Explain the concept with steps and examples",
-    "Compare the process and justify your answer",
-  ],
-  "Diagram/Graph-Based Questions": [
-    "Study the diagram carefully and answer what follows",
-    "Use the labelled figure to explain the underlying concept",
-  ],
-  "Numerical Problems": [
-    "Solve the problem and show the formula used",
-    "Calculate the value and explain the unit",
-  ],
-  "Assertion & Reasoning": [
-    "Evaluate the assertion and reason, then choose the correct relation",
-    "State whether both statements are true and connected correctly",
-  ],
-  "Case Study Questions": [
-    "Read the passage and answer the application-based question",
-    "Use the classroom scenario to justify your scientific explanation",
-  ],
-};
+const openai = new OpenAI({
+  apiKey: config.nvidiaApiKey,
+  baseURL: "https://integrate.api.nvidia.com/v1",
+});
 
 function difficultyFor(index: number): QuestionDifficulty {
   if (index % 3 === 0) return "Easy";
@@ -39,70 +20,33 @@ function difficultyFor(index: number): QuestionDifficulty {
   return "Challenging";
 }
 
-function questionText(
-  assignment: Assignment,
-  type: string,
-  questionNumber: number,
-  difficulty: QuestionDifficulty,
-) {
-  const stem = promptHints[type]?.[questionNumber % (promptHints[type]?.length ?? 1)] ??
-    "Explain the concept clearly";
-
-  return `${stem} for ${assignment.subject} in ${assignment.className}. Focus on ${assignment.instructions
-    .replace(/\.$/, "")
-    .slice(0, 70)} and keep the difficulty ${difficulty.toLowerCase()}.`;
-}
-
-function buildSections(assignment: Assignment) {
-  const chunks: GeneratedSection[] = [];
-  let runningQuestionNumber = 1;
-
-  assignment.questionTypes.forEach((item, index) => {
+function buildTemplatePaper(assignment: Assignment): GeneratedPaper {
+  let runningQ = 1;
+  const sections: GeneratedSection[] = assignment.questionTypes.map((item, idx) => {
     const questions: GeneratedQuestion[] = Array.from({ length: item.count }, (_, offset) => {
-      const difficulty = difficultyFor(runningQuestionNumber + offset);
+      const difficulty = difficultyFor(runningQ + offset);
       return {
-        id: `q-${runningQuestionNumber + offset}`,
-        text: questionText(assignment, item.type, offset, difficulty),
+        id: `q-${runningQ + offset}`,
+        text: `Question ${runningQ + offset}: Explain a key concept from ${assignment.subject} for ${assignment.className}. (${difficulty})`,
         difficulty,
         marks: item.marks,
-        answer: `${assignment.subject} answer ${runningQuestionNumber + offset}: A concise explanation for "${item.type}" that matches the requested difficulty and marking scheme.`,
+        answer: `Answer ${runningQ + offset}: A concise explanation for the concept as per ${assignment.board} curriculum.`,
       };
     });
-
-    chunks.push({
-      id: `section-${index + 1}`,
+    runningQ += item.count;
+    return {
+      id: `section-${idx + 1}`,
       title: item.type,
       instruction:
-        index === 0
+        idx === 0
           ? `Attempt all questions. Each question carries ${item.marks} mark(s).`
           : `Answer all ${item.count} question(s). Write clear steps where needed.`,
       questions,
-    });
-
-    runningQuestionNumber += item.count;
+    };
   });
 
-  return chunks;
-}
-
-export function buildStructuredPrompt(assignment: Assignment) {
-  return [
-    `Generate a structured question paper for ${assignment.board} ${assignment.className} ${assignment.subject}.`,
-    `School: ${assignment.schoolName}`,
-    `Due date: ${assignment.dueDate}`,
-    `Question types: ${assignment.questionTypes
-      .map((item) => `${item.type} x${item.count} (${item.marks} marks each)`)
-      .join(", ")}`,
-    `Instructions: ${assignment.instructions}`,
-    "Return structured JSON with sections, questions, difficulty, marks, and answer key.",
-  ].join("\n");
-}
-
-export async function generateQuestionPaper(assignment: Assignment): Promise<GeneratedPaper> {
-  const sections = buildSections(assignment);
-
   return {
-    greeting: `Certainly, Lakshya! Here are customized Question Paper for your ${assignment.board} ${assignment.className} ${assignment.subject} classes on the requested syllabus.`,
+    greeting: `Certainly! Here is a customized Question Paper for your ${assignment.board} ${assignment.className} ${assignment.subject} class.`,
     paperTitle: `${assignment.subject} Assessment`,
     schoolName: assignment.schoolName,
     subject: assignment.subject,
@@ -111,11 +55,98 @@ export async function generateQuestionPaper(assignment: Assignment): Promise<Gen
     maximumMarks: assignment.totalMarks,
     studentFields: ["Name", "Roll Number", "Section"],
     sections,
-    answerKey: sections.flatMap((section) =>
-      section.questions.map((question) => ({
-        id: question.id,
-        text: question.answer,
-      })),
+    answerKey: sections.flatMap((s) =>
+      s.questions.map((q) => ({ id: q.id, text: q.answer })),
     ),
   };
+}
+
+function buildPrompt(assignment: Assignment): string {
+  const sectionSpecs = assignment.questionTypes
+    .map((qt, i) => `Section ${String.fromCharCode(65 + i)}: ${qt.type} — ${qt.count} question(s) × ${qt.marks} mark(s) each`)
+    .join("\n");
+
+  return `You are an expert teacher. Generate a complete, high-quality question paper as valid JSON.
+
+Assignment details:
+- School: ${assignment.schoolName}
+- Board: ${assignment.board}
+- Class: ${assignment.className}
+- Subject: ${assignment.subject}
+- Instructions / syllabus focus: ${assignment.instructions}
+- Due date: ${assignment.dueDate}
+
+Sections required:
+${sectionSpecs}
+
+Return ONLY a JSON object (no markdown, no code fences) matching exactly this TypeScript shape:
+{
+  "greeting": string,            // friendly teacher message confirming the paper
+  "paperTitle": string,
+  "schoolName": string,
+  "subject": string,
+  "className": string,
+  "timeAllowed": string,         // e.g. "3 hours"
+  "maximumMarks": number,        // sum of all marks
+  "studentFields": string[],     // e.g. ["Name","Roll Number","Section"]
+  "sections": [
+    {
+      "id": string,
+      "title": string,           // question type name
+      "instruction": string,     // section-level instruction
+      "questions": [
+        {
+          "id": string,          // e.g. "q-1"
+          "text": string,        // full question text
+          "difficulty": "Easy" | "Moderate" | "Challenging",
+          "marks": number,
+          "answer": string       // model answer
+        }
+      ]
+    }
+  ],
+  "answerKey": [
+    { "id": string, "text": string }
+  ]
+}
+
+Make the questions genuinely relevant to the subject, class, board, and syllabus focus provided.`;
+}
+
+export async function generateQuestionPaper(assignment: Assignment): Promise<GeneratedPaper> {
+  if (!config.nvidiaApiKey) {
+    console.warn("NVIDIA_API_KEY not set — using template generator");
+    return buildTemplatePaper(assignment);
+  }
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "openai/gpt-oss-120b",
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are an expert teacher who creates structured, curriculum-aligned question papers. Always respond with valid JSON only — no markdown, no explanation.",
+        },
+        {
+          role: "user",
+          content: buildPrompt(assignment),
+        },
+      ],
+      temperature: 0.7,
+      top_p: 1,
+      max_tokens: 4096,
+    });
+
+    const raw = completion.choices[0]?.message?.content ?? "";
+
+    // Strip markdown code fences if the model wraps output
+    const json = raw.replace(/^```(?:json)?\n?/i, "").replace(/\n?```$/i, "").trim();
+
+    const parsed = JSON.parse(json) as GeneratedPaper;
+    return parsed;
+  } catch (err) {
+    console.error("NVIDIA generation failed, falling back to template:", err);
+    return buildTemplatePaper(assignment);
+  }
 }

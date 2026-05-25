@@ -39,9 +39,8 @@ export function AppShell() {
   const activeAssignment = assignments.find((item) => item.id === activeAssignmentId) ?? null;
 
   return (
-    <div className="min-h-screen bg-[#f1f1ef] p-3 text-[#2d2d2d]">
-      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.95),_transparent_40%),radial-gradient(circle_at_65%_40%,_rgba(255,255,255,0.85),_transparent_30%),linear-gradient(180deg,#f6f5f2_0%,#eceae5_100%)]" />
-      <div className="relative mx-auto flex max-w-[1440px] gap-3">
+    <div className="h-screen overflow-hidden bg-[#f1f1ef] text-[#2d2d2d]">
+      <div className="flex h-full gap-3 p-3">
         <Sidebar
           onCreate={() => {
             setView("create");
@@ -51,7 +50,7 @@ export function AppShell() {
           assignmentCount={Math.max(assignments.length, 10)}
         />
 
-        <main className="flex-1 space-y-3 pb-28 lg:pb-6">
+        <main className="flex flex-1 flex-col gap-3 overflow-y-auto pb-24 lg:pb-3">
           <div className="hidden md:block">
             <Topbar title={view === "create" ? "Assignment" : "Assignment"} mode={nav} />
           </div>
@@ -65,8 +64,8 @@ export function AppShell() {
             }
           />
 
-          <Card className="min-h-[calc(100vh-92px)] rounded-[30px] p-4 md:p-6">
-            <div className="mb-5 flex items-center justify-between px-2">
+          <Card className="flex-1 rounded-[30px] p-4 md:p-5">
+            <div className="mb-4 flex items-center justify-between px-1">
               <div className="text-sm text-[#888]">
                 {socketConnected ? "Realtime connected" : "Connecting to realtime updates..."}
               </div>
@@ -78,7 +77,7 @@ export function AppShell() {
             </div>
 
             {loading ? (
-              <div className="flex min-h-[70vh] items-center justify-center">
+              <div className="flex min-h-[60vh] items-center justify-center">
                 <div className="size-12 animate-spin rounded-full border-4 border-black/10 border-t-black" />
               </div>
             ) : null}

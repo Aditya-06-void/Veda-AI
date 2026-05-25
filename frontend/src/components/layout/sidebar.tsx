@@ -34,7 +34,7 @@ export function Sidebar({
   assignmentCount: number;
 }) {
   return (
-    <Card className="hidden h-[calc(100vh-24px)] w-[304px] flex-col justify-between rounded-[26px] px-5 py-5 lg:flex">
+    <Card className="hidden h-full w-[260px] flex-none flex-col justify-between overflow-y-auto rounded-[26px] px-4 py-5 lg:flex">
       <div className="space-y-8">
         <div className="flex items-center gap-3 px-2">
           <div className="flex size-10 items-center justify-center rounded-2xl bg-[linear-gradient(180deg,#F8B661_0%,#A3402D_100%)] shadow-lg">
