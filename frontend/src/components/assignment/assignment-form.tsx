@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   CalendarDays,
@@ -25,7 +25,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { defaultQuestionTypes, questionTypeOptions, schoolProfile } from "@/lib/constants";
+import {
+  boardOptions,
+  classOptions,
+  defaultQuestionTypes,
+  questionTypeOptions,
+  schoolProfile,
+  subjectOptions,
+} from "@/lib/constants";
 import { AssignmentFormValues, QuestionTypeItem } from "@/lib/types";
 import { toInputDate } from "@/lib/utils";
 
@@ -57,13 +64,7 @@ function totalFrom(questionTypes: QuestionTypeItem[]) {
   );
 }
 
-function QuantityControl({
-  value,
-  onChange,
-}: {
-  value: number;
-  onChange: (next: number) => void;
-}) {
+function QuantityControl({ value, onChange }: { value: number; onChange: (next: number) => void }) {
   return (
     <div className="flex items-center justify-between rounded-full border border-black/8 bg-white px-4 py-3">
       <button type="button" onClick={() => onChange(Math.max(1, value - 1))}>
@@ -104,12 +105,7 @@ export function AssignmentForm({ onSubmit, submitting, onCancel }: Props) {
   function addQuestionType() {
     setQuestionTypes((current) => [
       ...current,
-      {
-        id: `qt-${crypto.randomUUID()}`,
-        type: questionTypeOptions[0],
-        count: 4,
-        marks: 4,
-      },
+      { id: `qt-${crypto.randomUUID()}`, type: questionTypeOptions[0], count: 4, marks: 4 },
     ]);
   }
 
@@ -132,11 +128,11 @@ export function AssignmentForm({ onSubmit, submitting, onCancel }: Props) {
         </div>
       </div>
 
-      <div className="mx-auto h-1.5 max-w-[804px] overflow-hidden rounded-full bg-white/70">
+      <div className="mx-auto h-1.5 max-w-201 overflow-hidden rounded-full bg-white/70">
         <div className="h-full w-1/2 rounded-full bg-[#5b5b5b]" />
       </div>
 
-      <Card className="mx-auto max-w-[796px] rounded-[34px] px-5 py-7 md:px-8">
+      <Card className="mx-auto max-w-199 rounded-[34px] px-5 py-7 md:px-8">
         <div className="mb-7">
           <h2 className="text-[18px] font-extrabold tracking-[-0.04em] text-[#2d2d2d] md:text-[24px]">
             Assignment Details
@@ -147,13 +143,10 @@ export function AssignmentForm({ onSubmit, submitting, onCancel }: Props) {
         <form
           className="space-y-8"
           onSubmit={form.handleSubmit(async (values) =>
-            onSubmit({
-              ...values,
-              questionTypes,
-              file: selectedFile,
-            }),
+            onSubmit({ ...values, questionTypes, file: selectedFile }),
           )}
         >
+          {/* File upload */}
           <div className="rounded-[28px] border border-dashed border-black/12 bg-white px-4 py-7 text-center md:px-6 md:py-12">
             <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-black/5">
               <Upload className="size-5 text-[#2d2d2d]" />
@@ -161,46 +154,96 @@ export function AssignmentForm({ onSubmit, submitting, onCancel }: Props) {
             <p className="mt-4 text-[16px] font-semibold text-[#2d2d2d] md:mt-5 md:text-[20px]">
               Choose a file or drag & drop it here
             </p>
-            <p className="mt-2 text-sm text-[#999]">JPEG, PNG, upto 10MB</p>
+            <p className="mt-2 text-sm text-[#999]">PDF, TXT, CSV — up to 10 MB</p>
             <div className="mt-5">
               <label className="inline-flex cursor-pointer items-center rounded-full bg-[#f4f4f4] px-6 py-3 text-sm font-semibold text-[#2d2d2d]">
                 Browse Files
                 <input
                   type="file"
-                  accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.txt"
+                  accept=".pdf,.txt,.csv"
                   className="hidden"
-                  onChange={(event) =>
-                    setSelectedFile(event.target.files?.[0] ?? null)
-                  }
+                  onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
                 />
               </label>
             </div>
             <p className="mt-4 text-[#8b8b8b]">
-              {selectedFile
-                ? `Selected: ${selectedFile.name}`
-                : "Upload images of your preferred document/image"}
+              {selectedFile ? `Selected: ${selectedFile.name}` : "Upload a PDF or text file to use as source material"}
             </p>
           </div>
 
+          {/* Fields grid */}
           <div className="grid gap-4 md:grid-cols-2">
+            {/* School Name */}
             <div className="space-y-2">
               <label className="text-sm font-semibold text-[#2d2d2d]">School Name</label>
               <Input {...form.register("schoolName")} />
             </div>
+
+            {/* Board — dropdown */}
             <div className="space-y-2">
               <label className="text-sm font-semibold text-[#2d2d2d]">Board</label>
-              <Input {...form.register("board")} />
+              <Controller
+                name="board"
+                control={form.control}
+                render={({ field }) => (
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select board" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {boardOptions.map((b) => (
+                        <SelectItem key={b} value={b}>{b}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
             </div>
+
+            {/* Class — dropdown */}
             <div className="space-y-2">
               <label className="text-sm font-semibold text-[#2d2d2d]">Class</label>
-              <Input {...form.register("className")} />
+              <Controller
+                name="className"
+                control={form.control}
+                render={({ field }) => (
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select class" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {classOptions.map((c) => (
+                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
             </div>
+
+            {/* Subject — dropdown */}
             <div className="space-y-2">
               <label className="text-sm font-semibold text-[#2d2d2d]">Subject</label>
-              <Input {...form.register("subject")} />
+              <Controller
+                name="subject"
+                control={form.control}
+                render={({ field }) => (
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select subject" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {subjectOptions.map((s) => (
+                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
             </div>
           </div>
 
+          {/* Due date */}
           <div className="space-y-2">
             <label className="text-sm font-semibold text-[#2d2d2d]">Due Date</label>
             <div className="relative">
@@ -209,6 +252,7 @@ export function AssignmentForm({ onSubmit, submitting, onCancel }: Props) {
             </div>
           </div>
 
+          {/* Question types */}
           <div className="space-y-4">
             <div className="hidden grid-cols-[minmax(0,1fr)_116px_100px_40px] gap-4 text-sm font-semibold text-[#2d2d2d] md:grid">
               <span>Question Type</span>
@@ -219,49 +263,33 @@ export function AssignmentForm({ onSubmit, submitting, onCancel }: Props) {
 
             {questionTypes.map((item) => (
               <div key={item.id}>
+                {/* Desktop row */}
                 <div className="hidden grid-cols-[minmax(0,1fr)_116px_100px_40px] gap-4 md:grid md:items-center">
-                  <Select
-                    value={item.type}
-                    onValueChange={(value) => updateQuestionType(item.id, { type: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select question type" />
-                    </SelectTrigger>
+                  <Select value={item.type} onValueChange={(value) => updateQuestionType(item.id, { type: value })}>
+                    <SelectTrigger><SelectValue placeholder="Select question type" /></SelectTrigger>
                     <SelectContent>
                       {questionTypeOptions.map((option) => (
-                        <SelectItem key={option} value={option}>
-                          {option}
-                        </SelectItem>
+                        <SelectItem key={option} value={option}>{option}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                  <QuantityControl
-                    value={item.count}
-                    onChange={(next) => updateQuestionType(item.id, { count: next })}
-                  />
-                  <QuantityControl
-                    value={item.marks}
-                    onChange={(next) => updateQuestionType(item.id, { marks: next })}
-                  />
+                  <QuantityControl value={item.count} onChange={(next) => updateQuestionType(item.id, { count: next })} />
+                  <QuantityControl value={item.marks} onChange={(next) => updateQuestionType(item.id, { marks: next })} />
                   <button type="button" onClick={() => removeQuestionType(item.id)}>
                     <X className="size-4 text-[#555]" />
                   </button>
                 </div>
 
-                <Card className="rounded-[24px] p-4 md:hidden">
+                {/* Mobile card */}
+                <Card className="rounded-3xl p-4 md:hidden">
                   <div className="flex items-center gap-3">
-                    <Select
-                      value={item.type}
-                      onValueChange={(value) => updateQuestionType(item.id, { type: value })}
-                    >
+                    <Select value={item.type} onValueChange={(value) => updateQuestionType(item.id, { type: value })}>
                       <SelectTrigger className="border-none px-0 shadow-none">
                         <SelectValue placeholder="Select question type" />
                       </SelectTrigger>
                       <SelectContent>
                         {questionTypeOptions.map((option) => (
-                          <SelectItem key={option} value={option}>
-                            {option}
-                          </SelectItem>
+                          <SelectItem key={option} value={option}>{option}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -272,17 +300,11 @@ export function AssignmentForm({ onSubmit, submitting, onCancel }: Props) {
                   <div className="mt-4 grid grid-cols-2 gap-3 rounded-[20px] bg-[#f7f7f7] p-3">
                     <div>
                       <div className="mb-2 text-sm text-[#555]">No. of Questions</div>
-                      <QuantityControl
-                        value={item.count}
-                        onChange={(next) => updateQuestionType(item.id, { count: next })}
-                      />
+                      <QuantityControl value={item.count} onChange={(next) => updateQuestionType(item.id, { count: next })} />
                     </div>
                     <div>
                       <div className="mb-2 text-sm text-[#555]">Marks</div>
-                      <QuantityControl
-                        value={item.marks}
-                        onChange={(next) => updateQuestionType(item.id, { marks: next })}
-                      />
+                      <QuantityControl value={item.marks} onChange={(next) => updateQuestionType(item.id, { marks: next })} />
                     </div>
                   </div>
                 </Card>
@@ -301,11 +323,13 @@ export function AssignmentForm({ onSubmit, submitting, onCancel }: Props) {
             </button>
           </div>
 
+          {/* Totals */}
           <div className="text-right text-[16px] text-[#2d2d2d]">
             <p>Total Questions : {totals.questions}</p>
             <p>Total Marks : {totals.marks}</p>
           </div>
 
+          {/* Instructions */}
           <div className="space-y-2">
             <label className="text-sm font-semibold text-[#2d2d2d]">
               Additional Information (For better output)
@@ -316,6 +340,7 @@ export function AssignmentForm({ onSubmit, submitting, onCancel }: Props) {
             />
           </div>
 
+          {/* Nav buttons */}
           <div className="flex items-center justify-between pt-2">
             <Button type="button" variant="secondary" onClick={onCancel}>
               <ChevronLeft className="size-4" />

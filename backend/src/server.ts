@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import http from "node:http";
 
 import cors from "cors";
-import express from "express";
+import express, { type Request, type Response } from "express";
 import helmet from "helmet";
 import multer from "multer";
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -39,13 +39,9 @@ const app = express();
 const server = http.createServer(app);
 const io = new SocketServer(server, { cors: { origin: "*" } });
 
-// ── Security headers ─────────────────────────────────────────────────────────
+// ── Security ─────────────────────────────────────────────────────────────────
 app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
-
-// ── CORS ─────────────────────────────────────────────────────────────────────
 app.use(cors({ origin: "*", methods: ["GET", "POST", "DELETE", "OPTIONS"], allowedHeaders: ["Content-Type", "Authorization"] }));
-
-// ── Body parsers ──────────────────────────────────────────────────────────────
 app.use(express.json({ limit: "2mb" }));
 
 // ── Rate limiters ─────────────────────────────────────────────────────────────
@@ -71,7 +67,7 @@ const uploadLimiter = rateLimit({
   message: { message: "Upload rate limit exceeded." },
 });
 
-// ── File upload (memory, 10 MB max) ──────────────────────────────────────────
+// ── File upload ───────────────────────────────────────────────────────────────
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
@@ -82,22 +78,10 @@ const upload = multer({
   },
 });
 
-// ── Rewrite legacy /api/* → /api/v1/* so we only need one router mount ───────
-app.use((req, _res, next) => {
-  if (req.url.startsWith("/api/") && !req.url.startsWith("/api/v1/")) {
-    req.url = `/api/v1/${req.url.slice(5)}`;
-  }
-  next();
-});
-
-// ── Shared helpers ────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 function totalize(questionTypes: Assignment["questionTypes"]) {
   return questionTypes.reduce(
-    (acc, item) => {
-      acc.totalQuestions += item.count;
-      acc.totalMarks += item.count * item.marks;
-      return acc;
-    },
+    (acc, item) => { acc.totalQuestions += item.count; acc.totalMarks += item.count * item.marks; return acc; },
     { totalQuestions: 0, totalMarks: 0 },
   );
 }
@@ -128,80 +112,86 @@ async function publishAssignmentUpdate(assignment: Assignment) {
   io.emit("assignment:update", { assignment });
 }
 
-// ── Main API router (mounted at /api/v1) ─────────────────────────────────────
-const router = express.Router();
+// ── Helpers ───────────────────────────────────────────────────────────────────
+// Express 5 types `req.params` values as `string | string[]`
+function p(val: string | string[]): string {
+  return Array.isArray(val) ? val[0] : val;
+}
+
+// ── Flat route registration at /api/v1/* ──────────────────────────────────────
+// (No sub-router — registering directly on app avoids any Express 5 path-strip issues)
+
+const V1 = "/api/v1";
 
 // Health
-router.get("/health", (_req, res) => { res.json({ ok: true, version: "v1" }); });
+app.get(`${V1}/health`, (_req, res) => { res.json({ ok: true, version: "v1" }); });
 
-// ─── Stats ───────────────────────────────────────────────────────────────────
-router.get("/stats", async (_req, res) => {
+// Stats
+app.get(`${V1}/stats`, generalLimiter, async (_req: Request, res: Response) => {
   const stats = await getAppStats();
   res.json(stats);
 });
 
-// ─── Assignments ─────────────────────────────────────────────────────────────
+// ─── Assignments ──────────────────────────────────────────────────────────────
 
-router.get("/assignments", async (request, response) => {
-  const page = parseInt(request.query.page as string) || 0;
-  const limitParam = parseInt(request.query.limit as string) || 0;
+app.get(`${V1}/assignments`, generalLimiter, async (req: Request, res: Response) => {
+  const page = parseInt(req.query.page as string) || 0;
+  const limitParam = parseInt(req.query.limit as string) || 0;
 
   if (!page && !limitParam) {
     const cached = await readCachedAssignments();
-    if (cached) { response.json({ assignments: cached }); return; }
+    if (cached) { res.json({ assignments: cached }); return; }
     const assignments = await listAssignments();
     await cacheAssignments(assignments);
-    response.json({ assignments });
+    res.json({ assignments });
     return;
   }
 
   const limit = Math.min(50, Math.max(1, limitParam || 20));
   const actualPage = Math.max(1, page || 1);
   const { assignments, total } = await listAssignmentsPaginated(actualPage, limit);
-  response.json({
-    assignments,
-    pagination: { page: actualPage, limit, total, pages: Math.ceil(total / limit) },
-  });
+  res.json({ assignments, pagination: { page: actualPage, limit, total, pages: Math.ceil(total / limit) } });
 });
 
-router.post("/assignments", async (request, response) => {
-  const parsed = createAssignmentSchema.safeParse(request.body);
+app.post(`${V1}/assignments`, generalLimiter, async (req: Request, res: Response) => {
+  const parsed = createAssignmentSchema.safeParse(req.body);
   if (!parsed.success) {
-    response.status(400).json({ message: "Invalid assignment payload.", errors: parsed.error.flatten() });
+    res.status(400).json({ message: "Invalid assignment payload.", errors: parsed.error.flatten() });
     return;
   }
   const assignment = buildAssignment(parsed.data);
   await saveAssignment(assignment);
   await publishAssignmentUpdate(assignment);
-  response.status(201).json({ assignment });
+  res.status(201).json({ assignment });
 });
 
-router.get("/assignments/:assignmentId", async (request, response) => {
-  const assignment = await getAssignment(request.params.assignmentId);
-  if (!assignment) { response.status(404).json({ message: "Assignment not found." }); return; }
-  response.json({ assignment });
+app.get(`${V1}/assignments/:assignmentId`, generalLimiter, async (req: Request, res: Response) => {
+  const assignment = await getAssignment(p(req.params.assignmentId));
+  if (!assignment) { res.status(404).json({ message: "Assignment not found." }); return; }
+  res.json({ assignment });
 });
 
-router.delete("/assignments/:assignmentId", async (request, response) => {
-  const assignment = await getAssignment(request.params.assignmentId);
-  if (!assignment) { response.status(404).json({ message: "Assignment not found." }); return; }
-  await deleteAssignment(request.params.assignmentId);
+app.delete(`${V1}/assignments/:assignmentId`, generalLimiter, async (req: Request, res: Response) => {
+  const assignmentId = p(req.params.assignmentId);
+  const assignment = await getAssignment(assignmentId);
+  if (!assignment) { res.status(404).json({ message: "Assignment not found." }); return; }
+  await deleteAssignment(assignmentId);
   await clearAssignmentCache();
-  io.emit("assignment:deleted", { assignmentId: request.params.assignmentId });
-  response.json({ success: true });
+  io.emit("assignment:deleted", { assignmentId });
+  res.json({ success: true });
 });
 
-router.post(
-  "/assignments/:assignmentId/upload",
+app.post(
+  `${V1}/assignments/:assignmentId/upload`,
   uploadLimiter,
   upload.single("file"),
-  async (request, response) => {
-    const assignmentId = Array.isArray(request.params.assignmentId) ? request.params.assignmentId[0] : request.params.assignmentId;
+  async (req: Request, res: Response) => {
+    const assignmentId = p(req.params.assignmentId);
     const assignment = await getAssignment(assignmentId);
-    if (!assignment) { response.status(404).json({ message: "Assignment not found." }); return; }
+    if (!assignment) { res.status(404).json({ message: "Assignment not found." }); return; }
 
-    const file = request.file;
-    if (!file) { response.status(400).json({ message: "No file received." }); return; }
+    const file = req.file;
+    if (!file) { res.status(400).json({ message: "No file received." }); return; }
 
     let extractedText = "";
     try {
@@ -212,46 +202,46 @@ router.post(
         extractedText = file.buffer.toString("utf-8").trim();
       }
     } catch {
-      response.status(422).json({ message: "Could not extract text from the uploaded file." });
+      res.status(422).json({ message: "Could not extract text from the uploaded file." });
       return;
     }
 
     const updated: Assignment = { ...assignment, fileName: file.originalname, extractedText: extractedText.slice(0, 12000) };
     await saveAssignment(updated);
     await publishAssignmentUpdate(updated);
-    response.json({ assignment: updated, extractedChars: extractedText.length });
+    res.json({ assignment: updated, extractedChars: extractedText.length });
   },
 );
 
-router.post("/assignments/:assignmentId/generate", async (request, response) => {
-  const assignment = await enqueueGeneration(request.params.assignmentId);
-  if (!assignment) { response.status(404).json({ message: "Assignment not found." }); return; }
+app.post(`${V1}/assignments/:assignmentId/generate`, generalLimiter, async (req: Request, res: Response) => {
+  const assignment = await enqueueGeneration(p(req.params.assignmentId));
+  if (!assignment) { res.status(404).json({ message: "Assignment not found." }); return; }
   await publishAssignmentUpdate(assignment);
-  response.json({ assignment });
+  res.json({ assignment });
 });
 
-router.post("/assignments/:assignmentId/regenerate", async (request, response) => {
-  const existing = await getAssignment(request.params.assignmentId);
-  if (!existing) { response.status(404).json({ message: "Assignment not found." }); return; }
+app.post(`${V1}/assignments/:assignmentId/regenerate`, generalLimiter, async (req: Request, res: Response) => {
+  const existing = await getAssignment(p(req.params.assignmentId));
+  if (!existing) { res.status(404).json({ message: "Assignment not found." }); return; }
   const reset: Assignment = { ...existing, status: "draft", generatedPaper: undefined };
   await saveAssignment(reset);
   const queued = await enqueueGeneration(reset.id);
-  if (!queued) { response.status(500).json({ message: "Failed to queue regeneration." }); return; }
+  if (!queued) { res.status(500).json({ message: "Failed to queue regeneration." }); return; }
   await publishAssignmentUpdate(queued);
-  response.json({ assignment: queued });
+  res.json({ assignment: queued });
 });
 
-// ─── Groups ──────────────────────────────────────────────────────────────────
+// ─── Groups ───────────────────────────────────────────────────────────────────
 
-router.get("/groups", async (_req, res) => {
+app.get(`${V1}/groups`, generalLimiter, async (_req: Request, res: Response) => {
   const groups = await listGroups();
   res.json({ groups });
 });
 
-router.post("/groups", async (request, response) => {
-  const { subject, className, board, students, iconName, color, bg } = request.body as Partial<Group>;
+app.post(`${V1}/groups`, generalLimiter, async (req: Request, res: Response) => {
+  const { subject, className, board, students, iconName, color, bg } = req.body as Partial<Group>;
   if (!subject || !className || !board) {
-    response.status(400).json({ message: "subject, className, and board are required." });
+    res.status(400).json({ message: "subject, className, and board are required." });
     return;
   }
   const group: Group = {
@@ -267,25 +257,25 @@ router.post("/groups", async (request, response) => {
     createdAt: new Date().toISOString(),
   };
   await saveGroup(group);
-  response.status(201).json({ group });
+  res.status(201).json({ group });
 });
 
-router.delete("/groups/:groupId", async (request, response) => {
-  await deleteGroup(request.params.groupId);
-  response.json({ success: true });
+app.delete(`${V1}/groups/:groupId`, generalLimiter, async (req: Request, res: Response) => {
+  await deleteGroup(p(req.params.groupId));
+  res.json({ success: true });
 });
 
-// ─── Library ─────────────────────────────────────────────────────────────────
+// ─── Library ──────────────────────────────────────────────────────────────────
 
-router.get("/library", async (_req, res) => {
+app.get(`${V1}/library`, generalLimiter, async (_req: Request, res: Response) => {
   const docs = await listLibraryDocs();
   res.json({ docs });
 });
 
-router.post("/library", async (request, response) => {
-  const { title, type, subject, className, date, pages, starred } = request.body as Partial<LibraryDoc>;
+app.post(`${V1}/library`, generalLimiter, async (req: Request, res: Response) => {
+  const { title, type, subject, className, date, pages, starred } = req.body as Partial<LibraryDoc>;
   if (!title || !type || !subject || !className) {
-    response.status(400).json({ message: "title, type, subject, and className are required." });
+    res.status(400).json({ message: "title, type, subject, and className are required." });
     return;
   }
   const doc: LibraryDoc = {
@@ -300,49 +290,47 @@ router.post("/library", async (request, response) => {
     createdAt: new Date().toISOString(),
   };
   await saveLibraryDoc(doc);
-  response.status(201).json({ doc });
+  res.status(201).json({ doc });
 });
 
-router.delete("/library/:docId", async (request, response) => {
-  await deleteLibraryDoc(request.params.docId);
-  response.json({ success: true });
+app.delete(`${V1}/library/:docId`, generalLimiter, async (req: Request, res: Response) => {
+  await deleteLibraryDoc(p(req.params.docId));
+  res.json({ success: true });
 });
 
 // ─── Toolkit (streaming NVIDIA LLM) ──────────────────────────────────────────
-router.post("/toolkit/generate", aiLimiter, async (request, response) => {
+
+app.post(`${V1}/toolkit/generate`, aiLimiter, async (req: Request, res: Response) => {
   if (!config.nvidiaApiKey) {
-    response.status(500).json({ message: "NVIDIA_API_KEY not configured on server." });
+    res.status(500).json({ message: "NVIDIA_API_KEY not configured on server." });
     return;
   }
-  const input = request.body as ToolInput;
+  const input = req.body as ToolInput;
   if (!input.tool) {
-    response.status(400).json({ message: "Missing 'tool' field in request body." });
+    res.status(400).json({ message: "Missing 'tool' field in request body." });
     return;
   }
 
-  response.setHeader("Content-Type", "text/event-stream");
-  response.setHeader("Cache-Control", "no-cache");
-  response.setHeader("Connection", "keep-alive");
-  response.setHeader("Access-Control-Allow-Origin", "*");
-  response.flushHeaders();
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.flushHeaders();
 
   try {
     await streamToolkitResponse(input, (token) => {
-      response.write(`data: ${JSON.stringify({ token })}\n\n`);
+      res.write(`data: ${JSON.stringify({ token })}\n\n`);
     });
-    response.write("data: [DONE]\n\n");
+    res.write("data: [DONE]\n\n");
   } catch (err) {
     const message = err instanceof Error ? err.message : "Generation failed";
-    response.write(`data: ${JSON.stringify({ error: message })}\n\n`);
+    res.write(`data: ${JSON.stringify({ error: message })}\n\n`);
   } finally {
-    response.end();
+    res.end();
   }
 });
 
-// ── Single mount at /api/v1 ───────────────────────────────────────────────────
-app.use("/api/v1", generalLimiter, router);
-
-// ── WebSocket ────────────────────────────────────────────────────────────────
+// ── WebSocket ─────────────────────────────────────────────────────────────────
 io.on("connection", (socket) => {
   socket.emit("connected", { ok: true });
 });
@@ -352,14 +340,12 @@ async function start() {
   await connectMongo();
   await connectRedis();
   await initializeQueue({ onAssignmentUpdate: publishAssignmentUpdate });
-
-  // Seed demo data if collections are empty
   await seedGroupsIfEmpty();
   await seedLibraryDocsIfEmpty();
 
   server.listen(config.port, () => {
     console.log(`Backend listening on http://localhost:${config.port}`);
-    console.log(`API available at /api/v1 (legacy /api/* auto-rewritten)`);
+    console.log(`Routes available at /api/v1/*`);
   });
 }
 
