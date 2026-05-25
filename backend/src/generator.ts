@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import chalk from "chalk";
 
 import { config } from "./config";
 import type {
@@ -115,6 +116,8 @@ Return ONLY a valid JSON object (no markdown, no code fences) with this exact sh
 }
 
 export async function generateQuestionPaper(assignment: Assignment): Promise<GeneratedPaper> {
+  console.log(chalk.blue("Structuring sections, balancing difficulty, assigning marks, and formatting your paper."));
+  
   if (!config.nvidiaApiKey) {
     console.warn("NVIDIA_API_KEY not set — using template generator");
     return buildTemplatePaper(assignment);
