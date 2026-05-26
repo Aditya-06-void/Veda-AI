@@ -5,6 +5,7 @@ import {
   ClipboardList,
   Grid2X2,
   Library,
+  MapPin,
   Settings,
   Sparkles,
   Users,
@@ -93,14 +94,25 @@ export function Sidebar({ assignmentCount = 10 }: { assignmentCount?: number }) 
           <Settings className="size-4.5" />
           <span>Settings</span>
         </Link>
-        <div className="rounded-[20px] bg-[#f5f5f5] p-4">
+        <div className="rounded-2xl border border-gray-100 bg-white p-3.5 shadow-sm">
           <div className="flex items-center gap-3">
-            <div className="flex size-14 items-center justify-center rounded-full bg-[#ffd8c4] text-sm font-black text-[#2d2d2d]">
-              {schoolProfile.avatarText}
+            <div className="relative size-12 shrink-0 overflow-hidden rounded-xl ring-2 ring-blue-100">
+              <Image
+                src={`https://api.dicebear.com/9.x/shapes/svg?seed=${encodeURIComponent(schoolProfile.schoolName)}&size=96&backgroundColor=dbeafe&shape1Color=3b82f6&shape2Color=1d4ed8&shape3Color=93c5fd`}
+                alt={schoolProfile.schoolName}
+                fill
+                className="object-cover"
+                unoptimized
+              />
             </div>
-            <div>
-              <div className="font-bold text-[#2d2d2d]">{schoolProfile.schoolName}</div>
-              <div className="text-sm text-[#7b7b7b]">{schoolProfile.campus}</div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-bold leading-tight text-[#1a1a1a]">
+                {schoolProfile.schoolName}
+              </p>
+              <div className="mt-0.5 flex items-center gap-1">
+                <MapPin className="size-3 shrink-0 text-blue-400" />
+                <p className="truncate text-xs text-[#7b7b7b]">{schoolProfile.campus}</p>
+              </div>
             </div>
           </div>
         </div>
