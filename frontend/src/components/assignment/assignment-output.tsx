@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, RefreshCcw } from "lucide-react";
+import { CheckCircle2, Download, FileText, RefreshCcw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -164,7 +164,7 @@ export function AssignmentOutput({
           {paper?.greeting ??
             `Generating your ${assignment.board} ${assignment.className} ${assignment.subject} question paper…`}
         </p>
-        <div className="mt-5 flex flex-wrap gap-3">
+        <div className="mt-5 flex flex-wrap items-center gap-3">
           <Button
             variant="secondary"
             onClick={() => paper && printPaper(paper)}
@@ -182,7 +182,23 @@ export function AssignmentOutput({
             <RefreshCcw className="size-4" />
             Regenerate
           </Button>
+
+          {/* Auto-save indicator */}
+          {assignment.status === "completed" && (
+            <div className="ml-auto flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-white/80">
+              <CheckCircle2 className="size-3.5 text-emerald-400" />
+              Saved to database
+            </div>
+          )}
         </div>
+
+        {/* Source file indicator */}
+        {assignment.fileName && (
+          <div className="mt-3 flex items-center gap-1.5 text-xs text-white/50">
+            <FileText className="size-3" />
+            Source: {assignment.fileName}
+          </div>
+        )}
       </Card>
 
       {/* ── Paper card ── */}

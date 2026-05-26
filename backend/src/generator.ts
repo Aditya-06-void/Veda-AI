@@ -162,6 +162,13 @@ async function tryModel(model: string, assignment: Assignment): Promise<Generate
 export async function generateQuestionPaper(assignment: Assignment): Promise<GeneratedPaper> {
   console.log(chalk.blue("Structuring sections, balancing difficulty, assigning marks, and formatting your paper."));
 
+  const sourceLen = assignment.extractedText?.length ?? 0;
+  if (sourceLen > 0) {
+    console.log(chalk.blue(`[generator] SOURCE-BOUND mode — ${sourceLen} chars of source. Preview: ${assignment.extractedText!.slice(0, 120).replace(/\s+/g, " ")}…`));
+  } else {
+    console.warn(chalk.yellow(`[generator] GENERIC mode — no source text attached. Questions will follow standard ${assignment.board} syllabus, not your uploaded document.`));
+  }
+
   if (!config.nvidiaApiKey) {
     console.warn(chalk.yellow("NVIDIA_API_KEY not set — using template generator"));
     return buildTemplatePaper(assignment);

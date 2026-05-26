@@ -105,14 +105,20 @@ export const useAssignmentStore = create<AssignmentStore>((set, get) => ({
       get().hydrateAssignment(assignment);
       set({ activeAssignmentId: assignment.id, view: "output", nav: "toolkit" });
 
-      // Upload file and extract text before triggering generation
-      if (values.file) {
-        try {
-          const { assignment: withFile } = await uploadAssignmentFile(assignment.id, values.file);
-          get().hydrateAssignment(withFile);
-        } catch {
-          // Non-fatal: proceed without file content
-        }
+      // Source upload is mandatory — the generator binds questions to this text.
+      // If it fails we must NOT silently fall through to a generic paper.
+      if (!values.file) {
+        throw new Error("A source file is required to generate a question paper.");
+      }
+
+      const uploadResult = await uploadAssignmentFile(assignment.id, values.file);
+      get().hydrateAssignment(uploadResult.assignment);
+
+      if (!uploadResult.assignment.extractedText || uploadResult.extractedChars < 50) {
+        throw new Error(
+          `Source file uploaded but no readable text was extracted (${uploadResult.extractedChars} chars). ` +
+            "Please upload a valid PDF, HTML, or TXT file with actual content.",
+        );
       }
 
       await generateAssignment(assignment.id);

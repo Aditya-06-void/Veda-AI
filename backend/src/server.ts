@@ -5,10 +5,19 @@ import cors from "cors";
 import express, { type Request, type Response } from "express";
 import helmet from "helmet";
 import multer from "multer";
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const pdfParse = require("pdf-parse") as (buf: Buffer) => Promise<{ text: string }>;
+import { PDFParse } from "pdf-parse";
 import rateLimit from "express-rate-limit";
 import { Server as SocketServer } from "socket.io";
+
+async function extractPdfText(buffer: Buffer): Promise<string> {
+  const parser = new PDFParse({ data: new Uint8Array(buffer) });
+  try {
+    const result = await parser.getText();
+    return result.text ?? "";
+  } finally {
+    await parser.destroy().catch(() => {});
+  }
+}
 
 import { cacheAssignments, clearAssignmentCache, connectRedis, readCachedAssignments } from "./cache";
 import { config } from "./config";
@@ -90,9 +99,13 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
-    const allowed = ["application/pdf", "text/plain", "text/csv"];
-    const byExt = /\.(pdf|txt|csv)$/i.test(file.originalname);
-    cb(null, allowed.includes(file.mimetype) || byExt);
+    const allowed = ["application/pdf", "text/plain", "text/csv", "text/html", "application/xhtml+xml"];
+    const byExt = /\.(pdf|txt|csv|html?|xhtml)$/i.test(file.originalname);
+    const accepted = allowed.includes(file.mimetype) || byExt;
+    if (!accepted) {
+      console.warn(`[upload] REJECTED file "${file.originalname}" (mimetype=${file.mimetype}) — not in allow-list`);
+    }
+    cb(null, accepted);
   },
 });
 
@@ -174,12 +187,14 @@ app.get(`${V1}/assignments`, generalLimiter, async (req: Request, res: Response)
 app.post(`${V1}/assignments`, generalLimiter, async (req: Request, res: Response) => {
   const parsed = createAssignmentSchema.safeParse(req.body);
   if (!parsed.success) {
+    console.warn(`[assignments] create rejected — invalid payload:`, parsed.error.flatten());
     res.status(400).json({ message: "Invalid assignment payload.", errors: parsed.error.flatten() });
     return;
   }
   const assignment = buildAssignment(parsed.data);
   await saveAssignment(assignment);
   await publishAssignmentUpdate(assignment);
+  console.log(`[assignments] CREATED ${assignment.id} (${assignment.subject} / ${assignment.className})`);
   res.status(201).json({ assignment });
 });
 
@@ -209,33 +224,58 @@ app.post(
     if (!assignment) { res.status(404).json({ message: "Assignment not found." }); return; }
 
     const file = req.file;
-    if (!file) { res.status(400).json({ message: "No file received." }); return; }
+    if (!file) {
+      console.warn(`[upload] No file received for assignment ${assignmentId} — multer likely rejected it`);
+      res.status(400).json({ message: "No file received." });
+      return;
+    }
+
+    console.log(`[upload] received "${file.originalname}" mime=${file.mimetype} size=${file.size}B for assignment ${assignmentId}`);
 
     let extractedText = "";
     try {
       if (file.mimetype === "application/pdf" || file.originalname.endsWith(".pdf")) {
-        const result = await pdfParse(file.buffer);
-        extractedText = result.text.trim();
+        const text = await extractPdfText(file.buffer);
+        extractedText = text.trim();
+        console.log(`[upload] PDF parsed → ${extractedText.length} chars`);
       } else {
         const raw = file.buffer.toString("utf-8").trim();
         const isHtml = file.mimetype === "text/html" || file.originalname.endsWith(".html") || file.originalname.endsWith(".htm") || raw.trimStart().startsWith("<");
         extractedText = isHtml ? stripHtml(raw) : raw;
+        console.log(`[upload] ${isHtml ? "HTML stripped" : "plain text"} → ${extractedText.length} chars`);
       }
-    } catch {
+    } catch (err) {
+      console.error(`[upload] extraction failed:`, err);
       res.status(422).json({ message: "Could not extract text from the uploaded file." });
       return;
     }
 
-    const updated: Assignment = { ...assignment, fileName: file.originalname, extractedText: extractedText.slice(0, 12000) };
+    // Strip pdf-parse's page separators like "-- 1 of 5 --" before deciding if the doc is empty.
+    const meaningful = extractedText.replace(/--\s*\d+\s+of\s+\d+\s*--/gi, "").trim();
+    const isPdf = file.mimetype === "application/pdf" || file.originalname.toLowerCase().endsWith(".pdf");
+
+    if (meaningful.length < 200) {
+      console.warn(`[upload] REJECTED — only ${meaningful.length} chars of meaningful text. Preview: ${meaningful.slice(0, 200)}`);
+      const hint = isPdf
+        ? "This looks like a scanned or image-only PDF (no embedded text layer). Either upload the original HTML/TXT, or re-export the PDF using Chrome/Edge's \"Save as PDF\" (not \"Microsoft Print to PDF\"), which preserves the text layer."
+        : "The uploaded file contains almost no readable text.";
+      res.status(422).json({ message: hint, extractedChars: meaningful.length });
+      return;
+    }
+
+    const updated: Assignment = { ...assignment, fileName: file.originalname, extractedText: meaningful.slice(0, 12000) };
     await saveAssignment(updated);
     await publishAssignmentUpdate(updated);
-    res.json({ assignment: updated, extractedChars: extractedText.length });
+    console.log(`[upload] SAVED assignment ${assignmentId} with ${updated.extractedText?.length ?? 0} chars of source`);
+    res.json({ assignment: updated, extractedChars: meaningful.length });
   },
 );
 
 app.post(`${V1}/assignments/:assignmentId/generate`, generalLimiter, async (req: Request, res: Response) => {
-  const assignment = await enqueueGeneration(p(req.params.assignmentId));
+  const assignmentId = p(req.params.assignmentId);
+  const assignment = await enqueueGeneration(assignmentId);
   if (!assignment) { res.status(404).json({ message: "Assignment not found." }); return; }
+  console.log(`[generate] ENQUEUED ${assignmentId} — source attached: ${Boolean(assignment.extractedText)} (${assignment.extractedText?.length ?? 0} chars)`);
   await publishAssignmentUpdate(assignment);
   res.json({ assignment });
 });

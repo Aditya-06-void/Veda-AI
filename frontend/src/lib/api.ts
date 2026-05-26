@@ -59,8 +59,15 @@ export async function uploadAssignmentFile(assignmentId: string, file: File) {
   });
 
   if (!response.ok) {
-    const message = await response.text();
-    throw new Error(message || "File upload failed");
+    const raw = await response.text();
+    let message = raw || "File upload failed";
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed?.message) message = parsed.message;
+    } catch {
+      // raw wasn't JSON — fall through with the text body
+    }
+    throw new Error(message);
   }
 
   return response.json() as Promise<{ assignment: Assignment; extractedChars: number }>;
