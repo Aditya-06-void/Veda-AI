@@ -87,11 +87,12 @@ RULES (any violation makes the output wrong):
 2. Do NOT use outside knowledge, other chapters, or general curriculum facts not present in the source.
 3. MCQ wrong options must also be plausible terms from the source document.
 4. If a section type needs more questions than obvious topics exist, ask about the same concepts from different angles.
+5. MCQ FORMAT (critical): For any question in a "Multiple Choice Questions" section, the "text" field MUST contain the question stem followed by exactly four options, each on its own line, labelled "A) ", "B) ", "C) ", "D) ". Use real "\\n" line breaks inside the JSON string. The "answer" field for an MCQ must be the correct option letter and its text (e.g. "B) Newton (N)"). Example text value: "What is the SI unit of force?\\nA) Joule\\nB) Newton\\nC) Pascal\\nD) Watt".
 
 Sections to generate:
 ${sectionSpecs}
 
-Keep each "answer" to 1-2 sentences.
+Keep each "answer" to 1-3 sentences (MCQ answers may be shorter, per the MCQ format rule).
 Reply with ONLY a JSON object — zero markdown, zero preamble:
 {"greeting":string,"paperTitle":string,"schoolName":string,"subject":string,"className":string,"timeAllowed":string,"maximumMarks":number,"studentFields":["Name","Roll Number","Section"],"sections":[{"id":string,"title":string,"instruction":string,"questions":[{"id":string,"text":string,"difficulty":"Easy"|"Moderate"|"Challenging","marks":number,"answer":string}]}],"answerKey":[{"id":string,"text":string}]}`;
   }
@@ -104,7 +105,8 @@ Sections to generate:
 ${sectionSpecs}
 
 Base questions on the standard ${assignment.board} syllabus for ${assignment.className} ${assignment.subject}.
-Keep each "answer" to 1-2 sentences.
+MCQ FORMAT (critical): For any question in a "Multiple Choice Questions" section, the "text" field MUST contain the question stem followed by exactly four options, each on its own line, labelled "A) ", "B) ", "C) ", "D) ". Use real "\\n" line breaks inside the JSON string. The "answer" field for an MCQ must be the correct option letter and its text (e.g. "B) Newton (N)"). Example text value: "What is the SI unit of force?\\nA) Joule\\nB) Newton\\nC) Pascal\\nD) Watt".
+Keep each "answer" to 1-3 sentences (MCQ answers may be shorter, per the MCQ format rule).
 Reply with ONLY a JSON object — zero markdown, zero preamble:
 {"greeting":string,"paperTitle":string,"schoolName":string,"subject":string,"className":string,"timeAllowed":string,"maximumMarks":number,"studentFields":["Name","Roll Number","Section"],"sections":[{"id":string,"title":string,"instruction":string,"questions":[{"id":string,"text":string,"difficulty":"Easy"|"Moderate"|"Challenging","marks":number,"answer":string}]}],"answerKey":[{"id":string,"text":string}]}`;
 }
