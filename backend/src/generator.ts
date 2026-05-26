@@ -70,11 +70,16 @@ function buildPrompt(assignment: Assignment): string {
   const hasSource = Boolean(assignment.extractedText);
 
   const fileSection = hasSource
-    ? `\n\n=== SOURCE DOCUMENT ===\n${assignment.extractedText!.slice(0, 6000)}\n=== END ===`
+    ? `\n\n=== SOURCE DOCUMENT (your ONLY allowed knowledge base) ===\n${assignment.extractedText!.slice(0, 8000)}\n=== END OF SOURCE DOCUMENT ===`
     : "";
 
   const sourceRule = hasSource
-    ? `\n\nMANDATORY: Every question must come directly from the SOURCE DOCUMENT above only.`
+    ? `\n\nSTRICT RULE — SOURCE DOCUMENT ONLY:
+- You MUST generate ALL questions exclusively from the SOURCE DOCUMENT above.
+- Do NOT use any outside knowledge, textbook content, or general CBSE curriculum.
+- Every fact, concept, formula, example, and term in every question and answer MUST appear verbatim or be directly derivable from the SOURCE DOCUMENT.
+- If a question cannot be formed from the source document, skip that topic and pick another one that IS in the document.
+- Violating this rule by including off-topic questions is NOT acceptable.`
     : `\n\nBase questions on the ${assignment.board} curriculum for ${assignment.className} ${assignment.subject}.`;
 
   const totalQuestions = assignment.questionTypes.reduce((s, qt) => s + qt.count, 0);
@@ -93,53 +98,76 @@ Return ONLY a valid JSON object — no markdown, no code fences, no explanation.
 {"greeting":string,"paperTitle":string,"schoolName":string,"subject":string,"className":string,"timeAllowed":string,"maximumMarks":number,"studentFields":["Name","Roll Number","Section"],"sections":[{"id":string,"title":string,"instruction":string,"questions":[{"id":string,"text":string,"difficulty":"Easy"|"Moderate"|"Challenging","marks":number,"answer":string}]}],"answerKey":[{"id":string,"text":string}]}`;
 }
 
+// Models tried in order — first success wins.
+const MODEL_CHAIN = [
+  "openai/gpt-oss-120b",
+  "meta/llama-3.3-70b-instruct",
+  "google/gemma-4-31b-it",
+] as const;
+
+function extractJson(raw: string): string {
+  // Strip markdown fences
+  let s = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
+  // Find the outermost JSON object in case the model added preamble
+  const start = s.indexOf("{");
+  const end = s.lastIndexOf("}");
+  if (start !== -1 && end !== -1 && end > start) s = s.slice(start, end + 1);
+  return s;
+}
+
+async function tryModel(model: string, assignment: Assignment): Promise<GeneratedPaper> {
+  const completion = await openai.chat.completions.create({
+    model,
+    messages: [
+      {
+        role: "system",
+        content: "You are an expert teacher. Respond with valid JSON only — no markdown, no explanation, no preamble.",
+      },
+      { role: "user", content: buildPrompt(assignment) },
+    ],
+    temperature: 0.7,
+    top_p: 1,
+    max_tokens: 16384,
+  });
+
+  const choice = completion.choices[0];
+
+  if (choice?.finish_reason === "length") {
+    throw new Error(`Model ${model} truncated the response (finish_reason=length)`);
+  }
+
+  const raw = choice?.message?.content ?? "";
+  if (!raw.trim()) throw new Error(`Model ${model} returned empty response`);
+
+  const json = extractJson(raw);
+  const parsed = JSON.parse(json) as GeneratedPaper;
+
+  if (!parsed.sections?.length || !parsed.answerKey?.length) {
+    throw new Error(`Model ${model} returned incomplete paper structure`);
+  }
+
+  return parsed;
+}
+
 export async function generateQuestionPaper(assignment: Assignment): Promise<GeneratedPaper> {
   console.log(chalk.blue("Structuring sections, balancing difficulty, assigning marks, and formatting your paper."));
-  
+
   if (!config.nvidiaApiKey) {
-    console.warn("NVIDIA_API_KEY not set — using template generator");
+    console.warn(chalk.yellow("NVIDIA_API_KEY not set — using template generator"));
     return buildTemplatePaper(assignment);
   }
 
-  try {
-    const completion = await openai.chat.completions.create({
-      model: "openai/gpt-oss-120b",
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are an expert teacher who creates structured, curriculum-aligned question papers. Always respond with valid JSON only — no markdown, no explanation.",
-        },
-        {
-          role: "user",
-          content: buildPrompt(assignment),
-        },
-      ],
-      temperature: 0.7,
-      top_p: 1,
-      max_tokens: 16384,
-    });
-
-    const choice = completion.choices[0];
-
-    if (choice?.finish_reason === "length") {
-      console.warn(chalk.yellow("⚠ Response truncated (finish_reason=length) — falling back to template"));
-      return buildTemplatePaper(assignment);
+  for (const model of MODEL_CHAIN) {
+    try {
+      console.log(chalk.cyan(`→ Trying model: ${model}`));
+      const paper = await tryModel(model, assignment);
+      console.log(chalk.green(`✓ [${model}] Generated ${paper.sections.length} sections, ${paper.answerKey.length} questions`));
+      return paper;
+    } catch (err) {
+      console.warn(chalk.yellow(`⚠ [${model}] failed: ${(err as Error).message}`));
     }
-
-    const raw = choice?.message?.content ?? "";
-
-    // Strip markdown code fences if model wraps output
-    const json = raw
-      .replace(/^```(?:json)?\s*/i, "")
-      .replace(/\s*```\s*$/i, "")
-      .trim();
-
-    const parsed = JSON.parse(json) as GeneratedPaper;
-    console.log(chalk.green(`✓ Generated paper: ${parsed.sections.length} sections, ${parsed.answerKey.length} questions`));
-    return parsed;
-  } catch (err) {
-    console.error(chalk.red("NVIDIA generation failed, falling back to template:"), err);
-    return buildTemplatePaper(assignment);
   }
+
+  console.error(chalk.red("All models failed — using template fallback"));
+  return buildTemplatePaper(assignment);
 }

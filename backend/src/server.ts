@@ -35,6 +35,23 @@ import { streamToolkitResponse, type ToolInput } from "./toolkit";
 import { CreateAssignmentInput, Group, LibraryDoc, type Assignment } from "./types";
 import { createAssignmentSchema } from "./validation";
 
+// ── HTML text extractor ───────────────────────────────────────────────────────
+function stripHtml(html: string): string {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#\d+;/g, " ")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 // ── App setup ────────────────────────────────────────────────────────────────
 const app = express();
 const server = http.createServer(app);
@@ -200,7 +217,9 @@ app.post(
         const result = await pdfParse(file.buffer);
         extractedText = result.text.trim();
       } else {
-        extractedText = file.buffer.toString("utf-8").trim();
+        const raw = file.buffer.toString("utf-8").trim();
+        const isHtml = file.mimetype === "text/html" || file.originalname.endsWith(".html") || file.originalname.endsWith(".htm") || raw.trimStart().startsWith("<");
+        extractedText = isHtml ? stripHtml(raw) : raw;
       }
     } catch {
       res.status(422).json({ message: "Could not extract text from the uploaded file." });

@@ -7,26 +7,37 @@ import { Card } from "@/components/ui/card";
 import { Assignment, GeneratedPaper } from "@/lib/types";
 
 // ── MCQ option parser ────────────────────────────────────────────────────────
-// Splits "stem A) opt1 B) opt2 C) opt3 D) opt4" into stem + options array.
-function parseMCQOptions(text: string): { stem: string; options: string[] } | null {
+// Handles both actual newlines and literal \n stored in DB.
+function parseMCQOptions(raw: string): { stem: string; options: string[] } | null {
+  const text = raw.replace(/\\n/g, "\n");
   const parts = text.split(/\s+(?=[A-D][).]\s)/);
   if (parts.length < 3) return null;
-  const options = parts.slice(1);
+  const options = parts.slice(1).map((s) => s.trim());
   if (!options.every((s) => /^[A-D][).]\s/.test(s))) return null;
-  return { stem: parts[0], options };
+  return { stem: parts[0].trim(), options };
 }
 
 function QuestionText({ text }: { text: string }) {
   const parsed = parseMCQOptions(text);
-  if (!parsed) return <span>{text}</span>;
+  if (parsed) {
+    return (
+      <span>
+        <span className="block">{parsed.stem}</span>
+        <span className="mt-2 block space-y-1 pl-2 md:pl-4">
+          {parsed.options.map((opt, i) => (
+            <span key={i} className="block">{opt}</span>
+          ))}
+        </span>
+      </span>
+    );
+  }
+  // Render literal \n as line breaks for non-MCQ questions
+  const lines = text.replace(/\\n/g, "\n").split("\n");
   return (
     <span>
-      <span className="block">{parsed.stem}</span>
-      <span className="mt-2 block space-y-1 pl-2 md:pl-4">
-        {parsed.options.map((opt, i) => (
-          <span key={i} className="block">{opt}</span>
-        ))}
-      </span>
+      {lines.map((line, i) => (
+        <span key={i} className="block">{line}</span>
+      ))}
     </span>
   );
 }
@@ -148,7 +159,7 @@ export function AssignmentOutput({
   return (
     <div className="space-y-4">
       {/* ── Greeting card (hidden when printing) ── */}
-      <Card className="rounded-[28px] bg-[#2a2a2a] px-4 py-5 text-white md:rounded-[32px] md:px-6 md:py-6 print:hidden">
+      <Card className="rounded-[28px] bg-[#2a2a2a] px-4 py-5 text-white md:rounded-4xl md:px-6 md:py-6 print:hidden">
         <p className="max-w-4xl text-[14px] font-bold leading-6 md:text-[18px] md:leading-8">
           {paper?.greeting ??
             `Generating your ${assignment.board} ${assignment.className} ${assignment.subject} question paper…`}
@@ -175,10 +186,10 @@ export function AssignmentOutput({
       </Card>
 
       {/* ── Paper card ── */}
-      <Card className="overflow-hidden rounded-[32px] border-[1.5px] border-[#d4d4d4] bg-white shadow-sm">
+      <Card className="overflow-hidden rounded-4xl border-[1.5px] border-[#d4d4d4] bg-white shadow-sm">
         <div className="px-4 py-6 md:px-10 md:py-10">
           {!paper ? (
-            <div className="flex min-h-[680px] flex-col items-center justify-center text-center md:min-h-[800px]">
+            <div className="flex min-h-170 flex-col items-center justify-center text-center md:min-h-200">
               <div className="mb-4 size-12 animate-spin rounded-full border-4 border-black/10 border-t-black" />
               <h2 className="text-[24px] font-extrabold tracking-[-0.04em] text-[#2d2d2d] md:text-[28px]">
                 {generating ? "Generating question paper…" : "Preparing output"}
@@ -188,7 +199,7 @@ export function AssignmentOutput({
               </p>
             </div>
           ) : (
-            <article className="mx-auto max-w-3xl rounded-[16px] border border-[#e0e0e0] bg-white px-5 py-7 font-serif text-[#111] shadow-[0_1px_8px_rgba(0,0,0,0.06)] md:px-10 md:py-10">
+            <article className="mx-auto max-w-3xl rounded-2xl border border-[#e0e0e0] bg-white px-5 py-7 font-serif text-[#111] shadow-[0_1px_8px_rgba(0,0,0,0.06)] md:px-10 md:py-10">
               {/* ── Header ── */}
               <header className="border-b-2 border-[#111] pb-5 text-center">
                 <h1 className="text-[18px] font-black uppercase tracking-wider text-[#111] md:text-[24px]">
@@ -259,7 +270,7 @@ export function AssignmentOutput({
               </p>
 
               {/* ── Answer Key (screen only) ── */}
-              <section className="mt-8 rounded-[16px] border border-[#e8e8e8] bg-[#f8f8f8] px-5 py-6 md:px-7 md:py-7">
+              <section className="mt-8 rounded-2xl border border-[#e8e8e8] bg-[#f8f8f8] px-5 py-6 md:px-7 md:py-7">
                 <h2 className="text-[16px] font-extrabold tracking-[-0.02em] text-[#2d2d2d] md:text-[20px]">
                   Answer Key
                 </h2>
