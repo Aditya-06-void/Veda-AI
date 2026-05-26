@@ -31,12 +31,16 @@ export function MobileNav() {
     <>
       <Button
         size="icon"
-        className="fixed right-4 bottom-28 z-30 size-13 rounded-full bg-white text-[#ff6f2c] shadow-[0_10px_32px_rgba(17,17,17,0.18)] lg:hidden"
+        className="fixed right-4 z-30 size-13 rounded-full bg-white text-[#ff6f2c] shadow-[0_10px_32px_rgba(17,17,17,0.18)] lg:hidden"
+        style={{ bottom: "calc(7rem + env(safe-area-inset-bottom, 0px))" }}
         onClick={handleCreate}
       >
         <PlusCircle className="size-6" />
       </Button>
-      <Card className="fixed right-4 bottom-4 left-4 z-30 flex items-center justify-between rounded-3xl bg-[#1f1f1f] px-5 py-4 text-white lg:hidden">
+      <Card
+        className="fixed right-4 left-4 z-30 flex items-center justify-between rounded-3xl bg-[#1f1f1f] px-5 text-white lg:hidden"
+        style={{ bottom: "calc(1rem + env(safe-area-inset-bottom, 0px))", paddingTop: "1rem", paddingBottom: "calc(1rem + env(safe-area-inset-bottom, 0px))" }}
+      >
         {items.map((item) => {
           const active = pathname === item.href || (item.href !== "/home" && pathname.startsWith(item.href));
           return (

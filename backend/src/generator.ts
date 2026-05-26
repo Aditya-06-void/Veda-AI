@@ -70,49 +70,27 @@ function buildPrompt(assignment: Assignment): string {
   const hasSource = Boolean(assignment.extractedText);
 
   const fileSection = hasSource
-    ? `\n\n=== UPLOADED SOURCE DOCUMENT ===\n${assignment.extractedText!.slice(0, 8000)}\n=== END OF SOURCE DOCUMENT ===`
+    ? `\n\n=== SOURCE DOCUMENT ===\n${assignment.extractedText!.slice(0, 6000)}\n=== END ===`
     : "";
 
   const sourceRule = hasSource
-    ? `\n\nMANDATORY RULE: Every single question must be drawn DIRECTLY from the SOURCE DOCUMENT above. Do NOT include any question about a topic, fact, concept, diagram, or example that does not appear in that document. Treat the document as the only allowed knowledge base.`
+    ? `\n\nMANDATORY: Every question must come directly from the SOURCE DOCUMENT above only.`
     : `\n\nBase questions on the ${assignment.board} curriculum for ${assignment.className} ${assignment.subject}.`;
 
-  return `You are an expert ${assignment.board} teacher creating an examination paper.${fileSection}${sourceRule}
+  const totalQuestions = assignment.questionTypes.reduce((s, qt) => s + qt.count, 0);
 
-Exam details:
-- School: ${assignment.schoolName}
-- Board: ${assignment.board}
-- Class: ${assignment.className}
-- Subject: ${assignment.subject}
-- Teacher notes: ${assignment.instructions}
+  return `You are an expert ${assignment.board} teacher. Create an exam paper with exactly ${totalQuestions} questions.${fileSection}${sourceRule}
 
-Sections required (generate EXACTLY the number of questions specified):
+Exam: ${assignment.schoolName} | ${assignment.board} | ${assignment.className} | ${assignment.subject}
+Teacher notes: ${assignment.instructions}
+
+Sections (generate EXACTLY the counts below):
 ${sectionSpecs}
 
-Return ONLY a valid JSON object (no markdown, no code fences) with this exact shape:
-{
-  "greeting": string,
-  "paperTitle": string,
-  "schoolName": string,
-  "subject": string,
-  "className": string,
-  "timeAllowed": string,
-  "maximumMarks": number,
-  "studentFields": string[],
-  "sections": [{
-    "id": string,
-    "title": string,
-    "instruction": string,
-    "questions": [{
-      "id": string,
-      "text": string,
-      "difficulty": "Easy" | "Moderate" | "Challenging",
-      "marks": number,
-      "answer": string
-    }]
-  }],
-  "answerKey": [{ "id": string, "text": string }]
-}`;
+IMPORTANT: Keep each "answer" field to 1-2 sentences maximum to stay within token limits.
+
+Return ONLY a valid JSON object — no markdown, no code fences, no explanation. Use this exact shape:
+{"greeting":string,"paperTitle":string,"schoolName":string,"subject":string,"className":string,"timeAllowed":string,"maximumMarks":number,"studentFields":["Name","Roll Number","Section"],"sections":[{"id":string,"title":string,"instruction":string,"questions":[{"id":string,"text":string,"difficulty":"Easy"|"Moderate"|"Challenging","marks":number,"answer":string}]}],"answerKey":[{"id":string,"text":string}]}`;
 }
 
 export async function generateQuestionPaper(assignment: Assignment): Promise<GeneratedPaper> {
@@ -139,18 +117,29 @@ export async function generateQuestionPaper(assignment: Assignment): Promise<Gen
       ],
       temperature: 0.7,
       top_p: 1,
-      max_tokens: 4096,
+      max_tokens: 16384,
     });
 
-    const raw = completion.choices[0]?.message?.content ?? "";
+    const choice = completion.choices[0];
 
-    // Strip markdown code fences if the model wraps output
-    const json = raw.replace(/^```(?:json)?\n?/i, "").replace(/\n?```$/i, "").trim();
+    if (choice?.finish_reason === "length") {
+      console.warn(chalk.yellow("⚠ Response truncated (finish_reason=length) — falling back to template"));
+      return buildTemplatePaper(assignment);
+    }
+
+    const raw = choice?.message?.content ?? "";
+
+    // Strip markdown code fences if model wraps output
+    const json = raw
+      .replace(/^```(?:json)?\s*/i, "")
+      .replace(/\s*```\s*$/i, "")
+      .trim();
 
     const parsed = JSON.parse(json) as GeneratedPaper;
+    console.log(chalk.green(`✓ Generated paper: ${parsed.sections.length} sections, ${parsed.answerKey.length} questions`));
     return parsed;
   } catch (err) {
-    console.error("NVIDIA generation failed, falling back to template:", err);
+    console.error(chalk.red("NVIDIA generation failed, falling back to template:"), err);
     return buildTemplatePaper(assignment);
   }
 }

@@ -14,7 +14,7 @@ export function Topbar({
   mode?: "assignments" | "toolkit";
 }) {
   return (
-    <Card className="flex h-14 items-center justify-between rounded-[22px] px-6 py-0">
+    <Card className="hidden h-14 items-center justify-between rounded-[22px] px-6 py-0 md:flex">
       <div className="flex items-center gap-3 text-[#aaaaaa]">
         <ChevronLeft className="size-5 text-[#2f2f2f]" />
         <LayoutGrid className="size-4" />
