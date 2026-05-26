@@ -162,13 +162,13 @@ export function AssignmentForm({ onSubmit, submitting, onCancel }: Props) {
             <p className="mt-4 text-[16px] font-semibold text-[#2d2d2d] md:mt-5 md:text-[20px]">
               Choose a file or drag & drop it here
             </p>
-            <p className="mt-2 text-sm text-[#999]">PDF, TXT, CSV — up to 10 MB</p>
+            <p className="mt-2 text-sm text-[#999]">PDF, HTML, TXT — up to 10 MB</p>
             <div className="mt-5">
               <label className="inline-flex cursor-pointer items-center rounded-full bg-[#f4f4f4] px-6 py-3 text-sm font-semibold text-[#2d2d2d]">
                 Browse Files
                 <input
                   type="file"
-                  accept=".pdf,.txt,.csv"
+                  accept=".pdf,.html,.htm,.txt"
                   className="hidden"
                   onChange={(event) => {
                     setSelectedFile(event.target.files?.[0] ?? null);
@@ -178,7 +178,7 @@ export function AssignmentForm({ onSubmit, submitting, onCancel }: Props) {
               </label>
             </div>
             <p className="mt-4 text-[#8b8b8b]">
-              {selectedFile ? `Selected: ${selectedFile.name}` : "Upload a PDF or text file to use as source material"}
+              {selectedFile ? `Selected: ${selectedFile.name}` : "Upload a PDF or HTML file to use as source material"}
             </p>
             {fileError && (
               <p className="mt-2 text-sm font-medium text-red-500">{fileError}</p>

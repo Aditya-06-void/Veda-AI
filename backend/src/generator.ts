@@ -67,40 +67,50 @@ function buildPrompt(assignment: Assignment): string {
     .map((qt, i) => `Section ${String.fromCharCode(65 + i)}: ${qt.type} — ${qt.count} question(s) × ${qt.marks} mark(s) each`)
     .join("\n");
 
+  const totalQuestions = assignment.questionTypes.reduce((s, qt) => s + qt.count, 0);
   const hasSource = Boolean(assignment.extractedText);
 
-  const fileSection = hasSource
-    ? `\n\n=== SOURCE DOCUMENT (your ONLY allowed knowledge base) ===\n${assignment.extractedText!.slice(0, 8000)}\n=== END OF SOURCE DOCUMENT ===`
-    : "";
+  if (hasSource) {
+    const sourceText = assignment.extractedText!.slice(0, 8000);
+    return `Read the following source document carefully. It is the ONLY content you are allowed to use.
 
-  const sourceRule = hasSource
-    ? `\n\nSTRICT RULE — SOURCE DOCUMENT ONLY:
-- You MUST generate ALL questions exclusively from the SOURCE DOCUMENT above.
-- Do NOT use any outside knowledge, textbook content, or general CBSE curriculum.
-- Every fact, concept, formula, example, and term in every question and answer MUST appear verbatim or be directly derivable from the SOURCE DOCUMENT.
-- If a question cannot be formed from the source document, skip that topic and pick another one that IS in the document.
-- Violating this rule by including off-topic questions is NOT acceptable.`
-    : `\n\nBase questions on the ${assignment.board} curriculum for ${assignment.className} ${assignment.subject}.`;
+=== SOURCE DOCUMENT ===
+${sourceText}
+=== END OF SOURCE DOCUMENT ===
 
-  const totalQuestions = assignment.questionTypes.reduce((s, qt) => s + qt.count, 0);
-
-  return `You are an expert ${assignment.board} teacher. Create an exam paper with exactly ${totalQuestions} questions.${fileSection}${sourceRule}
-
-Exam: ${assignment.schoolName} | ${assignment.board} | ${assignment.className} | ${assignment.subject}
+You are a ${assignment.board} examiner for ${assignment.schoolName}.
+Generate an exam paper with exactly ${totalQuestions} questions for ${assignment.className} ${assignment.subject}.
 Teacher notes: ${assignment.instructions}
 
-Sections (generate EXACTLY the counts below):
+RULES (any violation makes the output wrong):
+1. ALL questions and answers must come ONLY from the SOURCE DOCUMENT above — no exceptions.
+2. Do NOT use outside knowledge, other chapters, or general curriculum facts not present in the source.
+3. MCQ wrong options must also be plausible terms from the source document.
+4. If a section type needs more questions than obvious topics exist, ask about the same concepts from different angles.
+
+Sections to generate:
 ${sectionSpecs}
 
-IMPORTANT: Keep each "answer" field to 1-2 sentences maximum to stay within token limits.
+Keep each "answer" to 1-2 sentences.
+Reply with ONLY a JSON object — zero markdown, zero preamble:
+{"greeting":string,"paperTitle":string,"schoolName":string,"subject":string,"className":string,"timeAllowed":string,"maximumMarks":number,"studentFields":["Name","Roll Number","Section"],"sections":[{"id":string,"title":string,"instruction":string,"questions":[{"id":string,"text":string,"difficulty":"Easy"|"Moderate"|"Challenging","marks":number,"answer":string}]}],"answerKey":[{"id":string,"text":string}]}`;
+  }
 
-Return ONLY a valid JSON object — no markdown, no code fences, no explanation. Use this exact shape:
+  return `You are a ${assignment.board} examiner for ${assignment.schoolName}.
+Generate an exam paper with exactly ${totalQuestions} questions for ${assignment.className} ${assignment.subject}.
+Teacher notes: ${assignment.instructions}
+
+Sections to generate:
+${sectionSpecs}
+
+Base questions on the standard ${assignment.board} syllabus for ${assignment.className} ${assignment.subject}.
+Keep each "answer" to 1-2 sentences.
+Reply with ONLY a JSON object — zero markdown, zero preamble:
 {"greeting":string,"paperTitle":string,"schoolName":string,"subject":string,"className":string,"timeAllowed":string,"maximumMarks":number,"studentFields":["Name","Roll Number","Section"],"sections":[{"id":string,"title":string,"instruction":string,"questions":[{"id":string,"text":string,"difficulty":"Easy"|"Moderate"|"Challenging","marks":number,"answer":string}]}],"answerKey":[{"id":string,"text":string}]}`;
 }
 
 // Models tried in order — first success wins.
 const MODEL_CHAIN = [
-  "openai/gpt-oss-120b",
   "meta/llama-3.3-70b-instruct",
   "google/gemma-4-31b-it",
 ] as const;
