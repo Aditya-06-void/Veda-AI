@@ -1,40 +1,32 @@
-# Use an official Node.js runtime as a parent image
-FROM node:20-alpine AS builder
+# Use debian slim and install Node.js from nodejs.org (generic x86_64, no AVX requirement)
+FROM debian:bookworm-slim AS builder
 
-# Set the working directory
+RUN apt-get update && apt-get install -y curl xz-utils && \
+    curl -fsSL https://nodejs.org/dist/v20.18.3/node-v20.18.3-linux-x64.tar.xz \
+      | tar -xJ -C /usr/local --strip-components=1 && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
-
-# Copy package.json and package-lock.json (if available)
 COPY package*.json ./
-
-# Install dependencies
 RUN npm install
-
-# Copy the rest of the application code
 COPY . .
-
-# Build the TypeScript project
 RUN npm run build
 
 # Production image
-FROM node:20-alpine
+FROM debian:bookworm-slim
 
-# Set the working directory
+RUN apt-get update && apt-get install -y curl xz-utils && \
+    curl -fsSL https://nodejs.org/dist/v20.18.3/node-v20.18.3-linux-x64.tar.xz \
+      | tar -xJ -C /usr/local --strip-components=1 && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
-
-# Copy the build artifacts and package.json from the builder stage
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/package*.json ./
-
-# Install only production dependencies
 RUN npm install --omit=dev
 
-# Set the environment variables
 ENV NODE_ENV=production
 ENV PORT=4000
-
-# Define the port the container should expose
 EXPOSE 4000
 
-# Command to run the application
-CMD ["npm", "start"]
+CMD ["node", "dist/server.js"]
