@@ -79,10 +79,10 @@ export async function generateAssignment(assignmentId: string) {
   });
 }
 
-export async function regenerateAssignment(assignmentId: string) {
+export async function regenerateAssignment(assignmentId: string, assignment?: Assignment) {
   return request<{ assignment: Assignment }>(
     `/api/v1/assignments/${assignmentId}/regenerate`,
-    { method: "POST" },
+    { method: "POST", body: JSON.stringify({ assignment }) },
   );
 }
 

@@ -30,7 +30,7 @@ type AssignmentStore = {
   setNav: (nav: NavMode) => void;
   setActiveAssignment: (assignmentId: string | null) => void;
   createAndGenerateAssignment: (values: AssignmentFormValues) => Promise<void>;
-  triggerRegeneration: (assignmentId: string) => Promise<void>;
+  triggerRegeneration: (assignmentId: string, assignment?: Assignment) => Promise<void>;
   removeAssignment: (assignmentId: string) => Promise<void>;
   hydrateAssignment: (assignment: Assignment) => void;
 };
@@ -131,10 +131,10 @@ export const useAssignmentStore = create<AssignmentStore>((set, get) => ({
       set({ submitting: false });
     }
   },
-  async triggerRegeneration(assignmentId) {
+  async triggerRegeneration(assignmentId, assignment) {
     try {
       set({ submitting: true, error: null, activeAssignmentId: assignmentId, view: "output" });
-      await regenerateAssignment(assignmentId);
+      await regenerateAssignment(assignmentId, assignment);
     } catch (error) {
       set({
         error:

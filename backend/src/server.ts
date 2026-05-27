@@ -281,7 +281,13 @@ app.post(`${V1}/assignments/:assignmentId/generate`, generalLimiter, async (req:
 });
 
 app.post(`${V1}/assignments/:assignmentId/regenerate`, generalLimiter, async (req: Request, res: Response) => {
-  const existing = await getAssignment(p(req.params.assignmentId));
+  const assignmentId = p(req.params.assignmentId);
+  let existing = await getAssignment(assignmentId);
+  if (!existing && req.body?.assignment?.id === assignmentId) {
+    // Frontend sent the full assignment — re-save it so we can regenerate
+    await saveAssignment(req.body.assignment as Assignment);
+    existing = await getAssignment(assignmentId);
+  }
   if (!existing) { res.status(404).json({ message: "Assignment not found." }); return; }
   const reset: Assignment = { ...existing, status: "draft", generatedPaper: undefined };
   await saveAssignment(reset);

@@ -147,7 +147,7 @@ export function AssignmentOutput({
   busy,
 }: {
   assignment: Assignment;
-  onRegenerate: (assignmentId: string) => Promise<void>;
+  onRegenerate: (assignmentId: string, assignment: Assignment) => Promise<void>;
   busy: boolean;
 }) {
   const paper = assignment.generatedPaper;
@@ -176,7 +176,7 @@ export function AssignmentOutput({
           </Button>
           <Button
             variant="outline"
-            onClick={() => onRegenerate(assignment.id)}
+            onClick={() => onRegenerate(assignment.id, assignment)}
             disabled={busy || generating}
           >
             <RefreshCcw className="size-4" />
