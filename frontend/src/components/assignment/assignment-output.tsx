@@ -1,12 +1,63 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { CheckCircle2, ClipboardCheck, Download, FileText, RefreshCcw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Assignment, GeneratedPaper } from "@/lib/types";
 import { EvaluatePanel } from "./evaluate-panel";
+
+// ── Generating loader ─────────────────────────────────────────────────────────
+const STEPS = [
+  "Reading your source document…",
+  "Identifying key concepts…",
+  "Crafting questions for each section…",
+  "Writing MCQ options…",
+  "Building the answer key…",
+  "Balancing difficulty levels…",
+  "Formatting the paper…",
+  "Almost there…",
+];
+
+function GeneratingLoader() {
+  const [elapsed, setElapsed] = useState(0);
+  const [stepIdx, setStepIdx] = useState(0);
+  const startRef = useRef(Date.now());
+
+  useEffect(() => {
+    const tick = setInterval(() => {
+      const secs = Math.floor((Date.now() - startRef.current) / 1000);
+      setElapsed(secs);
+      setStepIdx(Math.min(Math.floor(secs / 8), STEPS.length - 1));
+    }, 1000);
+    return () => clearInterval(tick);
+  }, []);
+
+  const mins = Math.floor(elapsed / 60);
+  const secs = elapsed % 60;
+  const timeStr = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+  const progress = Math.min((elapsed / 60) * 100, 95);
+
+  return (
+    <div className="flex min-h-[420px] flex-col items-center justify-center text-center md:min-h-[520px]">
+      <div className="mb-6 size-14 animate-spin rounded-full border-4 border-black/10 border-t-black" />
+      <h2 className="text-[22px] font-extrabold tracking-[-0.04em] text-[#2d2d2d] md:text-[26px]">
+        Generating question paper…
+      </h2>
+      <p className="mt-2 text-[14px] font-medium text-[#555]">{STEPS[stepIdx]}</p>
+      <div className="mt-5 w-64 md:w-80">
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#ebebeb]">
+          <div
+            className="h-1.5 rounded-full bg-[#111] transition-all duration-1000"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+      </div>
+      <p className="mt-3 text-[12px] text-[#bbb]">{timeStr} elapsed · AI is working on it</p>
+    </div>
+  );
+}
 
 // ── MCQ option parser ────────────────────────────────────────────────────────
 // Handles both actual newlines and literal \n stored in DB.
@@ -218,15 +269,12 @@ export function AssignmentOutput({
       <Card className="overflow-hidden rounded-4xl border-[1.5px] border-[#d4d4d4] bg-white shadow-sm">
         <div className="px-4 py-6 md:px-10 md:py-10">
           {!paper ? (
-            <div className="flex min-h-170 flex-col items-center justify-center text-center md:min-h-200">
-              <div className="mb-4 size-12 animate-spin rounded-full border-4 border-black/10 border-t-black" />
-              <h2 className="text-[24px] font-extrabold tracking-[-0.04em] text-[#2d2d2d] md:text-[28px]">
-                {generating ? "Generating question paper…" : "Preparing output"}
-              </h2>
-              <p className="mt-2 max-w-xl text-[#7b7b7b]">
-                Structuring sections, balancing difficulty, assigning marks, and formatting your paper.
-              </p>
-            </div>
+            generating ? <GeneratingLoader /> : (
+              <div className="flex min-h-105 flex-col items-center justify-center text-center md:min-h-130">
+                <div className="mb-4 size-12 animate-spin rounded-full border-4 border-black/10 border-t-black" />
+                <h2 className="text-[24px] font-extrabold tracking-[-0.04em] text-[#2d2d2d] md:text-[28px]">Preparing…</h2>
+              </div>
+            )
           ) : (
             <article className="mx-auto max-w-3xl rounded-2xl border border-[#e0e0e0] bg-white px-5 py-7 font-serif text-[#111] shadow-[0_1px_8px_rgba(0,0,0,0.06)] md:px-10 md:py-10">
               {/* ── Header ── */}
