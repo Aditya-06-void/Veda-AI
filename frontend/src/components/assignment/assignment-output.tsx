@@ -1,10 +1,12 @@
 "use client";
 
-import { CheckCircle2, Download, FileText, RefreshCcw } from "lucide-react";
+import { useState } from "react";
+import { CheckCircle2, ClipboardCheck, Download, FileText, RefreshCcw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Assignment, GeneratedPaper } from "@/lib/types";
+import { EvaluatePanel } from "./evaluate-panel";
 
 // ── MCQ option parser ────────────────────────────────────────────────────────
 // Handles both actual newlines and literal \n stored in DB.
@@ -153,6 +155,7 @@ export function AssignmentOutput({
   const paper = assignment.generatedPaper;
   const generating =
     assignment.status === "queued" || assignment.status === "generating";
+  const [evaluateOpen, setEvaluateOpen] = useState(false);
 
   let globalQ = 0;
 
@@ -182,6 +185,16 @@ export function AssignmentOutput({
             <RefreshCcw className="size-4" />
             Regenerate
           </Button>
+          {paper && (
+            <Button
+              variant="outline"
+              onClick={() => setEvaluateOpen(true)}
+              className="border-[#d4d4d4] bg-white text-[#333] hover:bg-[#f4f4f4]"
+            >
+              <ClipboardCheck className="size-4" />
+              Evaluate Answers
+            </Button>
+          )}
 
           {/* Auto-save indicator */}
           {assignment.status === "completed" && (
@@ -306,6 +319,12 @@ export function AssignmentOutput({
           )}
         </div>
       </Card>
+
+      <EvaluatePanel
+        assignmentId={assignment.id}
+        open={evaluateOpen}
+        onClose={() => setEvaluateOpen(false)}
+      />
     </div>
   );
 }

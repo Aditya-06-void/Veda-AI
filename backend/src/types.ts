@@ -104,3 +104,25 @@ export type AppStats = {
   students: number;
   aiGenerated: number;
 };
+
+export type QuestionEvaluation = {
+  questionId: string;
+  questionText: string;
+  studentAnswer: string;
+  expectedAnswer: string;
+  marksAwarded: number;
+  maxMarks: number;
+  feedback: string;
+};
+
+export type Evaluation = {
+  id: string;
+  assignmentId: string;
+  studentName: string;
+  totalMarksAwarded: number;
+  totalMaxMarks: number;
+  percentage: number;
+  grade: string;
+  questions: QuestionEvaluation[];
+  createdAt: string;
+};

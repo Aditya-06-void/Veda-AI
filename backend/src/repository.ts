@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import mongoose, { Schema } from "mongoose";
 
 import { config } from "./config";
-import { AppStats, Assignment, AssignmentStatus, GeneratedPaper, Group, LibraryDoc } from "./types";
+import { AppStats, Assignment, AssignmentStatus, Evaluation, GeneratedPaper, Group, LibraryDoc } from "./types";
 
 // ─────────────────── Assignment ──────────────────────────────────────────────
 
@@ -114,6 +114,50 @@ const libraryDocSchema = new Schema<LibraryDocDocument>(
 const LibraryDocModel =
   mongoose.models.LibraryDoc ||
   mongoose.model<LibraryDocDocument>("LibraryDoc", libraryDocSchema);
+
+// ─────────────────── Evaluation ─────────────────────────────────────────────
+
+type EvaluationDocument = mongoose.Document & Omit<Evaluation, "id"> & { evaluationId: string };
+
+const questionEvalSchema = new Schema(
+  { questionId: String, questionText: String, studentAnswer: String, expectedAnswer: String, marksAwarded: Number, maxMarks: Number, feedback: String },
+  { _id: false },
+);
+
+const evaluationSchema = new Schema<EvaluationDocument>(
+  {
+    evaluationId: { type: String, unique: true, index: true },
+    assignmentId: { type: String, index: true },
+    studentName: String,
+    totalMarksAwarded: Number,
+    totalMaxMarks: Number,
+    percentage: Number,
+    grade: String,
+    questions: [questionEvalSchema],
+    createdAt: String,
+  },
+  { versionKey: false },
+);
+
+const EvaluationModel =
+  mongoose.models.Evaluation ||
+  mongoose.model<EvaluationDocument>("Evaluation", evaluationSchema);
+
+function toEvaluation(doc: EvaluationDocument): Evaluation {
+  return {
+    id: doc.evaluationId,
+    assignmentId: doc.assignmentId,
+    studentName: doc.studentName,
+    totalMarksAwarded: doc.totalMarksAwarded,
+    totalMaxMarks: doc.totalMaxMarks,
+    percentage: doc.percentage,
+    grade: doc.grade,
+    questions: doc.questions,
+    createdAt: doc.createdAt,
+  };
+}
+
+const memoryEvaluations = new Map<string, Evaluation>();
 
 // ─────────────────── Connection ──────────────────────────────────────────────
 
@@ -654,4 +698,37 @@ export async function seedAssignmentsIfEmpty() {
   ];
 
   for (const a of seeds) await saveAssignment(a);
+}
+
+// ─────────────────── Evaluation CRUD ─────────────────────────────────────────
+
+export async function saveEvaluation(evaluation: Evaluation) {
+  if (mongoReady) {
+    await EvaluationModel.findOneAndUpdate(
+      { evaluationId: evaluation.id },
+      { ...evaluation, evaluationId: evaluation.id },
+      { upsert: true, new: true },
+    );
+  } else {
+    memoryEvaluations.set(evaluation.id, evaluation);
+  }
+  return evaluation;
+}
+
+export async function listEvaluationsForAssignment(assignmentId: string): Promise<Evaluation[]> {
+  if (mongoReady) {
+    const docs = await EvaluationModel.find({ assignmentId }).sort({ createdAt: -1 });
+    return docs.map(toEvaluation);
+  }
+  return [...memoryEvaluations.values()]
+    .filter((e) => e.assignmentId === assignmentId)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+}
+
+export async function deleteEvaluation(evaluationId: string) {
+  if (mongoReady) {
+    await EvaluationModel.deleteOne({ evaluationId });
+    return;
+  }
+  memoryEvaluations.delete(evaluationId);
 }

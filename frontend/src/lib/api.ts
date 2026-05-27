@@ -1,4 +1,4 @@
-import { AppStats, Assignment, AssignmentFormValues, Group, LibraryDoc } from "./types";
+import { AppStats, Assignment, AssignmentFormValues, Evaluation, Group, LibraryDoc } from "./types";
 
 export const API_BASE =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "http://localhost:4000";
@@ -84,6 +84,35 @@ export async function regenerateAssignment(assignmentId: string, assignment?: As
     `/api/v1/assignments/${assignmentId}/regenerate`,
     { method: "POST", body: JSON.stringify({ assignment }) },
   );
+}
+
+export async function submitEvaluation(assignmentId: string, studentName: string, file: File) {
+  const formData = new FormData();
+  formData.append("studentName", studentName);
+  formData.append("file", file);
+
+  const response = await fetch(`${API_BASE}/api/v1/assignments/${assignmentId}/evaluate`, {
+    method: "POST",
+    body: formData,
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const raw = await response.text();
+    let message = raw || "Evaluation failed";
+    try { const p = JSON.parse(raw); if (p?.message) message = p.message; } catch { /* not JSON */ }
+    throw new Error(message);
+  }
+
+  return response.json() as Promise<{ evaluation: Evaluation }>;
+}
+
+export async function fetchEvaluations(assignmentId: string) {
+  return request<{ evaluations: Evaluation[] }>(`/api/v1/assignments/${assignmentId}/evaluations`);
+}
+
+export async function deleteEvaluation(evaluationId: string) {
+  return request<{ success: boolean }>(`/api/v1/evaluations/${evaluationId}`, { method: "DELETE" });
 }
 
 export async function deleteAssignment(assignmentId: string) {

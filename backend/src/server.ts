@@ -24,15 +24,18 @@ import { config } from "./config";
 import {
   connectMongo,
   deleteAssignment,
+  deleteEvaluation,
   deleteGroup,
   deleteLibraryDoc,
   getAppStats,
   getAssignment,
   listAssignments,
   listAssignmentsPaginated,
+  listEvaluationsForAssignment,
   listGroups,
   listLibraryDocs,
   saveAssignment,
+  saveEvaluation,
   saveGroup,
   saveLibraryDoc,
   seedAssignmentsIfEmpty,
@@ -40,6 +43,7 @@ import {
   seedLibraryDocsIfEmpty,
 } from "./repository";
 import { enqueueGeneration, initializeQueue } from "./queue";
+import { evaluateAnswerSheet } from "./evaluator";
 import { streamToolkitResponse, type ToolInput } from "./toolkit";
 import { CreateAssignmentInput, Group, LibraryDoc, type Assignment } from "./types";
 import { createAssignmentSchema } from "./validation";
@@ -295,6 +299,53 @@ app.post(`${V1}/assignments/:assignmentId/regenerate`, generalLimiter, async (re
   if (!queued) { res.status(500).json({ message: "Failed to queue regeneration." }); return; }
   await publishAssignmentUpdate(queued);
   res.json({ assignment: queued });
+});
+
+// ─── Evaluations ──────────────────────────────────────────────────────────────
+
+app.post(
+  `${V1}/assignments/:assignmentId/evaluate`,
+  uploadLimiter,
+  upload.single("file"),
+  async (req: Request, res: Response) => {
+    const assignmentId = p(req.params.assignmentId);
+    const assignment = await getAssignment(assignmentId);
+    if (!assignment) { res.status(404).json({ message: "Assignment not found." }); return; }
+    if (!assignment.generatedPaper) { res.status(422).json({ message: "This assignment has no generated paper yet." }); return; }
+
+    const studentName = (req.body?.studentName as string)?.trim();
+    if (!studentName) { res.status(400).json({ message: "studentName is required." }); return; }
+
+    const file = req.file;
+    if (!file) { res.status(400).json({ message: "An answer sheet file is required." }); return; }
+
+    try {
+      const evaluation = await evaluateAnswerSheet(
+        assignmentId,
+        studentName,
+        assignment.generatedPaper,
+        file.buffer,
+        file.mimetype,
+        file.originalname,
+      );
+      await saveEvaluation(evaluation);
+      res.status(201).json({ evaluation });
+    } catch (err) {
+      console.error("[evaluate] failed:", err);
+      res.status(500).json({ message: (err as Error).message ?? "Evaluation failed." });
+    }
+  },
+);
+
+app.get(`${V1}/assignments/:assignmentId/evaluations`, generalLimiter, async (req: Request, res: Response) => {
+  const assignmentId = p(req.params.assignmentId);
+  const evaluations = await listEvaluationsForAssignment(assignmentId);
+  res.json({ evaluations });
+});
+
+app.delete(`${V1}/evaluations/:evaluationId`, generalLimiter, async (req: Request, res: Response) => {
+  await deleteEvaluation(p(req.params.evaluationId));
+  res.json({ success: true });
 });
 
 // ─── Groups ───────────────────────────────────────────────────────────────────
