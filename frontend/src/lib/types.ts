@@ -57,6 +57,7 @@ export type Assignment = {
   createdAt: string;
   status: AssignmentStatus;
   fileName?: string;
+  extractedText?: string;
   generatedPaper?: GeneratedPaper;
 };
 
