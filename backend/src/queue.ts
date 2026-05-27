@@ -17,7 +17,9 @@ export async function initializeQueue(handlers: QueueHandlers) {
   const connection = getRedisConnection();
 
   if (connection) {
-    queue = new Queue("assignment-generation", { connection });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const conn = connection as any;
+    queue = new Queue("assignment-generation", { connection: conn });
     worker = new Worker(
       "assignment-generation",
       async (job) => {
@@ -42,7 +44,7 @@ export async function initializeQueue(handlers: QueueHandlers) {
           await handlers.onAssignmentUpdate(completed);
         }
       },
-      { connection },
+      { connection: conn },
     );
   } else {
     fallbackHandlers = handlers;
