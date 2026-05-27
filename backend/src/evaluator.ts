@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import crypto from "crypto";
 import chalk from "chalk";
+import { PDFParse } from "pdf-parse";
 
 import { config } from "./config";
 import type { Evaluation, GeneratedPaper, QuestionEvaluation } from "./types";
@@ -162,9 +163,13 @@ export async function evaluateAnswerSheet(
     const base64 = fileBuffer.toString("base64");
     studentText = await extractTextFromImage(base64, mimeType);
   } else if (isPdf) {
-    const pdfParse = (await import("pdf-parse")).default;
-    const result = await pdfParse(fileBuffer);
-    studentText = result.text.trim();
+    const parser = new PDFParse({ data: new Uint8Array(fileBuffer) });
+    try {
+      const result = await parser.getText();
+      studentText = (result.text ?? "").trim();
+    } finally {
+      await parser.destroy().catch(() => {});
+    }
     console.log(chalk.green(`✓ PDF extracted ${studentText.length} chars`));
   } else {
     const raw = fileBuffer.toString("utf-8").trim();
