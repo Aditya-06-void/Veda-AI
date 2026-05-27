@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { AssignmentEmptyState } from "@/components/assignment/assignment-empty-state";
@@ -12,7 +12,7 @@ import { Topbar } from "@/components/layout/topbar";
 import { Card } from "@/components/ui/card";
 import { useAssignmentStore } from "@/store/use-assignment-store";
 
-export default function AssignmentsPage() {
+function AssignmentsPageContent() {
   const searchParams = useSearchParams();
   const {
     assignments,
@@ -119,5 +119,13 @@ export default function AssignmentsPage() {
         ) : null}
       </Card>
     </>
+  );
+}
+
+export default function AssignmentsPage() {
+  return (
+    <Suspense>
+      <AssignmentsPageContent />
+    </Suspense>
   );
 }
